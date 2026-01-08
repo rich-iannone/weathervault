@@ -341,7 +341,9 @@ def search_stations(
         For convenience, you can also use the `wv.country` shorthand:
         `wv.country.US`, `wv.country.GB`, `wv.country.DE`, etc.
     state
-        Filter by US state code (exact match).
+        Filter by US state or territory code (exact match, e.g., `"CA"`, `"NY"`, `"TX"`).
+        For convenience, you can also use the `wv.state` shorthand:
+        `wv.state.CA`, `wv.state.NY`, `wv.state.TX`, etc.
     lat_range
         Filter by latitude range as (min_lat, max_lat).
     lon_range
@@ -356,12 +358,13 @@ def search_stations(
 
     Examples
     --------
-    Search for stations in California:
+    Search for stations in California using the state shorthand:
 
     ```{python}
     import weathervault as wv
 
-    ca_stations = wv.search_stations(state="CA")
+    # Using wv.state shorthand (provides autocomplete)
+    ca_stations = wv.search_stations(state=wv.state.CA)
 
     ca_stations
     ```
@@ -373,6 +376,18 @@ def search_stations(
     de_stations = wv.search_stations(country_code=wv.country.DE)
 
     de_stations
+    ```
+
+    Combine state and country filters:
+
+    ```{python}
+    # Find stations in California, US
+    us_ca = wv.search_stations(
+        country_code=wv.country.US,
+        state=wv.state.CA
+    )
+
+    us_ca
     ```
 
     Search for stations within a bounding box:

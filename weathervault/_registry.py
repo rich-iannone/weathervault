@@ -41,8 +41,8 @@ def _get_stations_df() -> pl.DataFrame:
 class _StationNamespace:
     """A namespace that provides station IDs with autocomplete support.
 
-    This class lazily loads station data and provides attribute access
-    to station IDs organized by country and optionally state.
+    This class lazily loads station data and provides attribute access to station IDs organized by
+    country and optionally state.
     """
 
     def __init__(

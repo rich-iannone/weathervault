@@ -842,6 +842,67 @@ ISO_COUNTRY_NAMES = {
 }
 
 
+# US state and territory codes to names
+US_STATE_NAMES = {
+    "AL": "Alabama",
+    "AK": "Alaska",
+    "AZ": "Arizona",
+    "AR": "Arkansas",
+    "CA": "California",
+    "CO": "Colorado",
+    "CT": "Connecticut",
+    "DE": "Delaware",
+    "FL": "Florida",
+    "GA": "Georgia",
+    "HI": "Hawaii",
+    "ID": "Idaho",
+    "IL": "Illinois",
+    "IN": "Indiana",
+    "IA": "Iowa",
+    "KS": "Kansas",
+    "KY": "Kentucky",
+    "LA": "Louisiana",
+    "ME": "Maine",
+    "MD": "Maryland",
+    "MA": "Massachusetts",
+    "MI": "Michigan",
+    "MN": "Minnesota",
+    "MS": "Mississippi",
+    "MO": "Missouri",
+    "MT": "Montana",
+    "NE": "Nebraska",
+    "NV": "Nevada",
+    "NH": "New Hampshire",
+    "NJ": "New Jersey",
+    "NM": "New Mexico",
+    "NY": "New York",
+    "NC": "North Carolina",
+    "ND": "North Dakota",
+    "OH": "Ohio",
+    "OK": "Oklahoma",
+    "OR": "Oregon",
+    "PA": "Pennsylvania",
+    "RI": "Rhode Island",
+    "SC": "South Carolina",
+    "SD": "South Dakota",
+    "TN": "Tennessee",
+    "TX": "Texas",
+    "UT": "Utah",
+    "VT": "Vermont",
+    "VA": "Virginia",
+    "WA": "Washington",
+    "WV": "West Virginia",
+    "WI": "Wisconsin",
+    "WY": "Wyoming",
+    "DC": "District of Columbia",
+    "AS": "American Samoa",
+    "GU": "Guam",
+    "MP": "Northern Mariana Islands",
+    "PR": "Puerto Rico",
+    "VI": "U.S. Virgin Islands",
+}
+
+
 class _CountryCodes:
     """
     Convenience class for accessing ISO country codes via attribute access.
@@ -873,3 +934,38 @@ class _CountryCodes:
 
 # Singleton instance for convenient attribute-based country code access
 country = _CountryCodes()
+
+
+class _StateCodes:
+    """
+    Convenience class for accessing US state and territory codes via attribute access.
+
+    Provides a clean syntax for specifying state codes in function calls:
+        wv.search_stations(state=wv.state.CA)
+        wv.search_stations(state=wv.state.NY)
+        wv.search_stations(state=wv.state.TX)
+
+    All US state and territory codes are available as attributes.
+    Includes the 50 states, DC, and 5 territories (AS, GU, MP, PR, VI).
+    """
+
+    def __getattr__(self, name: str) -> str:
+        """Return the US state code (same as the attribute name)."""
+        code = name.upper()
+        if code in US_STATE_NAMES:
+            return code
+        raise AttributeError(
+            f"'{code}' is not a valid US state or territory code. "
+            f"See wv.US_STATE_NAMES for valid codes."
+        )
+
+    def __dir__(self):
+        """Return list of all valid US state codes for autocomplete."""
+        return list(US_STATE_NAMES.keys())
+
+    def __repr__(self) -> str:
+        return f"<StateCodes: {len(US_STATE_NAMES)} US states and territories>"
+
+
+# Singleton instance for convenient attribute-based state code access
+state = _StateCodes()

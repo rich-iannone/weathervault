@@ -203,7 +203,7 @@ weather = wv.get_weather_data(
 
 Weathervault automatically checks:
 
-1. Specified cache_dir (if provided)
+1. Specified `cache_dir=` (if provided)
 2. Current working directory (for existing cached files)
 
 and if no relevant data files are found, they are downloaded from NOAA.

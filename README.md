@@ -1,5 +1,8 @@
 # weathervault
 
+[![Tests](https://github.com/rich-iannone/weathervault/actions/workflows/tests.yml/badge.svg)](https://github.com/rich-iannone/weathervault/actions/workflows/tests.yml)
+[![Python versions](https://img.shields.io/pypi/pyversions/weathervault.svg)](https://pypi.org/project/weathervault/)
+
 Obtain Polars DataFrames of historical weather data from NOAA's National Centers for Environmental Information (NCEI) Integrated Surface Database (ISD).
 
 ## Features

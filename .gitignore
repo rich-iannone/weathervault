@@ -178,7 +178,7 @@ marimo/_lsp/
 __marimo__/
 
 # Quarto files
-.qmd
+/*.qmd
 
 # Temporary Outputs
 /*.parquet

@@ -118,7 +118,7 @@ class TestStationRegistry:
         results = wv.station.search("kennedy")
         assert len(results) > 0
         # Should find JFK
-        assert any("KENNEDY" in key for key in results.keys())
+        assert any("KENNEDY" in key for key in results)
 
     @pytest.mark.network
     def test_active_station_preferred(self):
@@ -133,6 +133,7 @@ class TestStationRegistry:
         """Test accessing non-US countries."""
         # Germany should have stations (ISO code DE, FIPS code GM)
         de = wv.station.DE  # Germany uses ISO code DE
+        assert hasattr(de, "__getattr__")  # Should be a country node
 
     @pytest.mark.network
     def test_use_with_get_weather_data(self):

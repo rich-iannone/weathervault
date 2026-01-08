@@ -199,12 +199,14 @@ weather = wv.get_weather_data(
     years=2024,
     cache_dir="~/weather_cache"
 )
-
-# weathervault automatically checks:
-# 1. Specified cache_dir (if provided)
-# 2. Current working directory (for existing cached files)
-# 3. Downloads from NOAA if not found
 ```
+
+Weathervault automatically checks:
+
+1. Specified cache_dir (if provided)
+2. Current working directory (for existing cached files)
+
+and if no relevant data files are found, they are downloaded from NOAA.
 
 ## Data Inventory
 

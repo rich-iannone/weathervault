@@ -505,3 +505,80 @@ class TestCountryShorthand:
         repr_str = repr(wv.country)
         assert "CountryCodes" in repr_str
         assert "ISO 3166-1" in repr_str
+
+
+class TestStateShorthand:
+    """Tests for the US state code shorthand (wv.state.XX)."""
+
+    def test_state_exists(self):
+        """Test that wv.state exists."""
+        assert hasattr(wv, "state")
+
+    def test_returns_uppercase_code(self):
+        """Test that state codes are returned in uppercase."""
+        assert wv.state.CA == "CA"
+        assert wv.state.NY == "NY"
+        assert wv.state.TX == "TX"
+        assert wv.state.FL == "FL"
+
+    def test_lowercase_access_works(self):
+        """Test that lowercase attribute access works."""
+        assert wv.state.ca == "CA"
+        assert wv.state.ny == "NY"
+        assert wv.state.tx == "TX"
+
+    def test_territories_included(self):
+        """Test that US territories are included."""
+        assert wv.state.PR == "PR"  # Puerto Rico
+        assert wv.state.GU == "GU"  # Guam
+        assert wv.state.VI == "VI"  # U.S. Virgin Islands
+        assert wv.state.AS == "AS"  # American Samoa
+        assert wv.state.MP == "MP"  # Northern Mariana Islands
+        assert wv.state.DC == "DC"  # District of Columbia
+
+    def test_invalid_code_raises_error(self):
+        """Test that invalid state codes raise AttributeError."""
+        with pytest.raises(AttributeError, match="not a valid US state"):
+            _ = wv.state.INVALID
+
+    @pytest.mark.network
+    def test_works_in_search_stations(self):
+        """Test that state shorthand works in search_stations."""
+        # Should work just like passing string "CA"
+        result1 = search_stations(state=wv.state.CA)
+        result2 = search_stations(state="CA")
+
+        assert result1.height == result2.height
+        assert result1.height > 0
+
+    @pytest.mark.network
+    def test_multiple_states(self):
+        """Test using state shorthand for multiple states."""
+        ca = search_stations(state=wv.state.CA)
+        ny = search_stations(state=wv.state.NY)
+        tx = search_stations(state=wv.state.TX)
+
+        assert ca.height > 0
+        assert ny.height > 0
+        assert tx.height > 0
+
+        # Verify they return different results
+        assert ca.height != ny.height
+        assert ca.height != tx.height
+
+    def test_dir_returns_state_codes(self):
+        """Test that dir() returns list of state codes."""
+        codes = dir(wv.state)
+
+        # Should contain known state codes
+        assert "CA" in codes
+        assert "NY" in codes
+        assert "TX" in codes
+        assert "FL" in codes
+        assert len(codes) == 56  # 50 states + DC + 5 territories
+
+    def test_repr(self):
+        """Test string representation of state object."""
+        repr_str = repr(wv.state)
+        assert "StateCodes" in repr_str
+        assert "US states" in repr_str

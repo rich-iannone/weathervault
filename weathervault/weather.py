@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.resources
 import warnings
 from datetime import date
 from pathlib import Path
@@ -40,6 +41,37 @@ def _normalize_temp_unit(temp_unit: str) -> str | None:
     elif unit in ("k", "kelvin"):
         return "kelvin"
     return None
+
+
+def _get_bundled_years(station_id: str) -> set[int]:
+    """
+    Get years available in bundled sample data for a station.
+
+    Parameters
+    ----------
+    station_id
+        Station ID in USAF-WBAN format.
+
+    Returns
+    -------
+    set[int]
+        Set of years available in bundled data, empty if none.
+    """
+    try:
+        data_files = importlib.resources.files("weathervault.data")
+        bundled_years = set()
+        for item in data_files.iterdir():
+            name = item.name
+            if name.startswith(f"{station_id}-") and name.endswith(".gz"):
+                # Extract year from filename like "725030-14732-2023.gz"
+                year_str = name.replace(f"{station_id}-", "").replace(".gz", "")
+                try:
+                    bundled_years.add(int(year_str))
+                except ValueError:
+                    pass
+        return bundled_years
+    except (ModuleNotFoundError, FileNotFoundError, TypeError):
+        return set()
 
 
 def get_weather_data(
@@ -206,10 +238,13 @@ def get_weather_data(
             "elev": station_info["elev"][0],
         }
 
-    # Determine years to fetch
-    available_years = get_years_for_station(station_id)
+    # Check if we have bundled data for this station (for offline docs)
+    bundled_years = _get_bundled_years(station_id)
 
+    # Determine years to fetch
     if years is None:
+        # When years=None, we need to know all available years from inventory
+        available_years = get_years_for_station(station_id)
         years_to_fetch = available_years
         if not years_to_fetch:
             raise ValueError(f"No data available for station '{station_id}'")
@@ -218,46 +253,50 @@ def get_weather_data(
     else:
         years_to_fetch = list(years)
 
-    # Check for unavailable years and warn user
-    if years is not None and available_years:
-        requested_years = set(years_to_fetch)
-        available_set = set(available_years)
-        unavailable_years = requested_years - available_set
-        fetchable_years = requested_years & available_set
+    # Check for unavailable years and warn user (skip if all requested years are bundled)
+    if years is not None and not set(years_to_fetch).issubset(bundled_years):
+        available_years = get_years_for_station(station_id)
 
-        if unavailable_years:
-            unavailable_sorted = sorted(unavailable_years)
-            available_range = f"{min(available_years)}-{max(available_years)}"
+        if available_years:
+            requested_years = set(years_to_fetch)
+            available_set = set(available_years)
+            unavailable_years = requested_years - available_set
+            fetchable_years = requested_years & available_set
 
-            if not fetchable_years:
-                # None of the requested years are available
-                raise ValueError(
-                    f"No data available for station '{station_id}' for year(s) "
-                    f"{', '.join(map(str, unavailable_sorted))}. "
-                    f"Available years: {available_range} "
-                    f"({len(available_years)} years total). "
-                    f"Use get_years_for_station('{station_id}') to see all available years."
-                )
-            else:
-                # Some years are available, warn about partial data
-                fetchable_sorted = sorted(fetchable_years)
-                if not quiet:
-                    warnings.warn(
-                        f"Partial data returned for station '{station_id}'. "
-                        f"Requested years {', '.join(map(str, unavailable_sorted))} are not available. "
-                        f"Returning data for: {', '.join(map(str, fetchable_sorted))}. "
-                        f"Available years for this station: {available_range}.",
-                        UserWarning,
-                        stacklevel=2,
+            if unavailable_years:
+                unavailable_sorted = sorted(unavailable_years)
+                available_range = f"{min(available_years)}-{max(available_years)}"
+
+                if not fetchable_years:
+                    # None of the requested years are available
+                    raise ValueError(
+                        f"No data available for station '{station_id}' for year(s) "
+                        f"{', '.join(map(str, unavailable_sorted))}. "
+                        f"Available years: {available_range} "
+                        f"({len(available_years)} years total). "
+                        f"Use get_years_for_station('{station_id}') to see all available years."
                     )
-                # Only fetch the years that are actually available
-                years_to_fetch = fetchable_sorted
-    elif years is not None and not available_years:
-        # Station exists in metadata but has no inventory data
-        raise ValueError(
-            f"No data inventory found for station '{station_id}'. "
-            f"This station may not have any downloadable data files."
-        )
+                else:
+                    # Some years are available, warn about partial data
+                    fetchable_sorted = sorted(fetchable_years)
+                    if not quiet:
+                        warnings.warn(
+                            f"Partial data returned for station '{station_id}'. "
+                            f"Requested years {', '.join(map(str, unavailable_sorted))} "
+                            f"are not available. "
+                            f"Returning data for: {', '.join(map(str, fetchable_sorted))}. "
+                            f"Available years for this station: {available_range}.",
+                            UserWarning,
+                            stacklevel=2,
+                        )
+                    # Only fetch the years that are actually available
+                    years_to_fetch = fetchable_sorted
+        elif not bundled_years:
+            # Station exists in metadata but has no inventory data and no bundled data
+            raise ValueError(
+                f"No data inventory found for station '{station_id}'. "
+                f"This station may not have any downloadable data files."
+            )
 
     # Set up cache directory if specified
     # Special case: "." means use current working directory
@@ -315,10 +354,11 @@ def _fetch_year_data(
     """
     Fetch weather data for a station and year.
 
-    First checks for cached files in:
+    First checks for data in:
 
-    1. The specified cache directory (if provided)
-    2. The current working directory (always checked)
+    1. Bundled sample data (shipped with package for documentation examples)
+    2. The specified cache directory (if provided)
+    3. The current working directory
 
     If not found locally, downloads from NCEI and caches if `cache_path=` is set.
 
@@ -339,7 +379,17 @@ def _fetch_year_data(
     """
     filename = f"{station_id}-{year}.gz"
 
-    # Check cache directory first (if provided)
+    # Check for bundled sample data first (used for documentation examples)
+    try:
+        data_files = importlib.resources.files("weathervault.data")
+        bundled_file = data_files.joinpath(filename)
+        if bundled_file.is_file():
+            return bundled_file.read_bytes()
+    except (ModuleNotFoundError, FileNotFoundError, TypeError):
+        # No bundled data available, continue to other sources
+        pass
+
+    # Check cache directory (if provided)
     if cache_path:
         cached_file = cache_path / filename
         if cached_file.exists():

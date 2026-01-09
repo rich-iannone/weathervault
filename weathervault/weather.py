@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -50,6 +51,7 @@ def get_weather_data(
     make_hourly: bool = False,
     cache_dir: str | Path | None = None,
     incl_stn_info: bool = False,
+    quiet: bool = False,
 ) -> pl.DataFrame:
     """
     Get weather data for a meteorological station.
@@ -82,6 +84,9 @@ def get_weather_data(
     incl_stn_info
         Whether to include station metadata in the output. When True, adds columns for station name,
         country, state, ICAO code, latitude, longitude, and elevation. Default is `False`.
+    quiet
+        If `True`, suppress warning messages about partial data availability (when some requested
+        years are not available). Default is `False`.
 
     Returns
     -------
@@ -202,14 +207,57 @@ def get_weather_data(
         }
 
     # Determine years to fetch
+    available_years = get_years_for_station(station_id)
+
     if years is None:
-        years_to_fetch = get_years_for_station(station_id)
+        years_to_fetch = available_years
         if not years_to_fetch:
             raise ValueError(f"No data available for station '{station_id}'")
     elif isinstance(years, int):
         years_to_fetch = [years]
     else:
         years_to_fetch = list(years)
+
+    # Check for unavailable years and warn user
+    if years is not None and available_years:
+        requested_years = set(years_to_fetch)
+        available_set = set(available_years)
+        unavailable_years = requested_years - available_set
+        fetchable_years = requested_years & available_set
+
+        if unavailable_years:
+            unavailable_sorted = sorted(unavailable_years)
+            available_range = f"{min(available_years)}-{max(available_years)}"
+
+            if not fetchable_years:
+                # None of the requested years are available
+                raise ValueError(
+                    f"No data available for station '{station_id}' for year(s) "
+                    f"{', '.join(map(str, unavailable_sorted))}. "
+                    f"Available years: {available_range} "
+                    f"({len(available_years)} years total). "
+                    f"Use get_years_for_station('{station_id}') to see all available years."
+                )
+            else:
+                # Some years are available, warn about partial data
+                fetchable_sorted = sorted(fetchable_years)
+                if not quiet:
+                    warnings.warn(
+                        f"Partial data returned for station '{station_id}'. "
+                        f"Requested years {', '.join(map(str, unavailable_sorted))} are not available. "
+                        f"Returning data for: {', '.join(map(str, fetchable_sorted))}. "
+                        f"Available years for this station: {available_range}.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                # Only fetch the years that are actually available
+                years_to_fetch = fetchable_sorted
+    elif years is not None and not available_years:
+        # Station exists in metadata but has no inventory data
+        raise ValueError(
+            f"No data inventory found for station '{station_id}'. "
+            f"This station may not have any downloadable data files."
+        )
 
     # Set up cache directory if specified
     # Special case: "." means use current working directory

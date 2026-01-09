@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.resources
 import warnings
 from datetime import date
@@ -65,10 +66,8 @@ def _get_bundled_years(station_id: str) -> set[int]:
             if name.startswith(f"{station_id}-") and name.endswith(".gz"):
                 # Extract year from filename like "725030-14732-2023.gz"
                 year_str = name.replace(f"{station_id}-", "").replace(".gz", "")
-                try:
+                with contextlib.suppress(ValueError):
                     bundled_years.add(int(year_str))
-                except ValueError:
-                    pass
         return bundled_years
     except (ModuleNotFoundError, FileNotFoundError, TypeError):
         return set()
@@ -245,23 +244,26 @@ def get_weather_data(
     if years is None:
         # When years=None, we need to know all available years from inventory
         available_years = get_years_for_station(station_id)
-        years_to_fetch = available_years
-        if not years_to_fetch:
+        requested_years = available_years
+        if not requested_years:
             raise ValueError(f"No data available for station '{station_id}'")
     elif isinstance(years, int):
-        years_to_fetch = [years]
+        requested_years = [years]
     else:
-        years_to_fetch = list(years)
+        requested_years = list(years)
+
+    # Start with the requested years as years to fetch
+    years_to_fetch = list(requested_years)
 
     # Check for unavailable years and warn user (skip if all requested years are bundled)
-    if years is not None and not set(years_to_fetch).issubset(bundled_years):
+    if years is not None and not set(requested_years).issubset(bundled_years):
         available_years = get_years_for_station(station_id)
 
         if available_years:
-            requested_years = set(years_to_fetch)
+            requested_set = set(requested_years)
             available_set = set(available_years)
-            unavailable_years = requested_years - available_set
-            fetchable_years = requested_years & available_set
+            unavailable_years = requested_set - available_set
+            fetchable_years = requested_set & available_set
 
             if unavailable_years:
                 unavailable_sorted = sorted(unavailable_years)
@@ -289,7 +291,8 @@ def get_weather_data(
                             UserWarning,
                             stacklevel=2,
                         )
-                    # Only fetch the years that are actually available
+                    # Update both requested and fetch lists
+                    requested_years = fetchable_sorted
                     years_to_fetch = fetchable_sorted
         elif not bundled_years:
             # Station exists in metadata but has no inventory data and no bundled data
@@ -297,6 +300,17 @@ def get_weather_data(
                 f"No data inventory found for station '{station_id}'. "
                 f"This station may not have any downloadable data files."
             )
+
+    # When converting to local time, we need buffer years to handle timezone offsets
+    # at year boundaries. For example, UTC records from Dec 31 23:00 might become
+    # Jan 1 08:00 local time (UTC+9), or Jan 1 05:00 UTC might become Dec 31 21:00
+    # local time (UTC-8). By fetching adjacent years, we ensure complete coverage.
+    if convert_to_local and years_to_fetch:
+        buffer_years = set(years_to_fetch)
+        for year in requested_years:
+            buffer_years.add(year - 1)  # Previous year for positive UTC offsets
+            buffer_years.add(year + 1)  # Next year for negative UTC offsets
+        years_to_fetch = sorted(buffer_years)
 
     # Set up cache directory if specified
     # Special case: "." means use current working directory
@@ -334,13 +348,15 @@ def get_weather_data(
     # Sort by time
     result = result.sort("time")
 
-    # Filter to requested years (in case of edge cases at year boundaries)
-    result = result.filter(pl.col("time").dt.year().is_in(years_to_fetch))
+    # Filter to requested years only (trimming buffer years used for timezone handling)
+    # This ensures users get exactly the years they asked for, with complete data
+    # at year boundaries after timezone conversion
+    result = result.filter(pl.col("time").dt.year().is_in(requested_years))
 
     # Optionally resample to hourly
     if make_hourly:
         result = _make_hourly(
-            result, years_to_fetch, tz_name if convert_to_local else "UTC", incl_stn_info
+            result, requested_years, tz_name if convert_to_local else "UTC", incl_stn_info
         )
 
     return result

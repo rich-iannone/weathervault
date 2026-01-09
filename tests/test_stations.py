@@ -115,6 +115,35 @@ class TestGetStationMetadata:
         assert result1 is not result2
         assert result1.height == result2.height
 
+    @pytest.mark.network
+    def test_cache_with_timezone_then_without(self):
+        """Test cache behavior: fetch with timezone, then without."""
+        # First fetch with timezone (populates cache with tz)
+        result_with_tz = get_station_metadata(include_timezone=True, force_refresh=True)
+        assert "tz_name" in result_with_tz.columns
+
+        # Now fetch without timezone - should use cache and drop tz_name
+        result_without_tz = get_station_metadata(include_timezone=False)
+        assert "tz_name" not in result_without_tz.columns
+        assert result_with_tz.height == result_without_tz.height
+
+    @pytest.mark.network
+    def test_cache_without_timezone_reused(self):
+        """Test cache reuse when fetched without timezone."""
+        # Clear cache by forcing refresh without timezone
+        import weathervault.stations as stations_module
+
+        stations_module._station_metadata_cache = None
+        stations_module._station_metadata_cache_has_tz = False
+
+        # Fetch without timezone
+        result1 = get_station_metadata(include_timezone=False)
+        assert "tz_name" not in result1.columns
+
+        # Fetch again without timezone - should use cache
+        result2 = get_station_metadata(include_timezone=False)
+        assert result1 is result2
+
 
 class TestSearchStations:
     """Tests for search_stations function."""
@@ -182,6 +211,21 @@ class TestSearchStations:
         result = search_stations(state="NY", name="airport")
 
         assert isinstance(result, pl.DataFrame)
+
+    @pytest.mark.network
+    def test_search_has_recent_data(self):
+        """Test filtering stations by recent data availability."""
+        from datetime import date
+
+        result = search_stations(has_recent_data=True)
+
+        assert isinstance(result, pl.DataFrame)
+        if result.height > 0:
+            # All stations should have end_date >= last year
+            current_year = date.today().year
+            cutoff = date(current_year - 1, 1, 1)
+            end_dates = result["end_date"].to_list()
+            assert all(d >= cutoff for d in end_dates if d is not None)
 
 
 class TestGetInventory:

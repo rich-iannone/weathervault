@@ -179,7 +179,7 @@ def get_station_metadata(
                 return None
             try:
                 return tf.timezone_at(lat=lat, lng=lon)
-            except Exception:
+            except Exception:  # pragma: no cover
                 return None
 
         tz_names = [
@@ -499,7 +499,7 @@ def get_countries() -> pl.DataFrame:
     country_names = []
 
     for fips_code, country_name in COUNTRY_CODES.items():
-        if fips_code in FIPS_TO_ISO:
+        if fips_code in FIPS_TO_ISO:  # pragma: no branch
             iso_codes.append(FIPS_TO_ISO[fips_code])
             country_names.append(country_name)
 

@@ -805,8 +805,11 @@ class TestYearAvailabilityMocked:
 
         get_weather_data("725030-14732", years=None)
 
-        # Should have attempted to fetch all available years
-        assert sorted(fetched_years) == available
+        # Should have attempted to fetch all available years plus buffer years
+        # Buffer years (±1) are fetched to handle timezone offsets at year boundaries
+        # For years [2021, 2022, 2023], buffers add 2020 and 2024
+        expected_with_buffers = [2020, 2021, 2022, 2023, 2024]
+        assert sorted(fetched_years) == expected_with_buffers
 
     def test_years_none_with_no_data_raises_error(self, monkeypatch, mock_station_df):
         """Test that years=None with no available data raises error."""
@@ -823,3 +826,80 @@ class TestYearAvailabilityMocked:
             get_weather_data("725030-14732", years=None)
 
         assert "No data available for station" in str(exc_info.value)
+
+    def test_buffer_years_fetched_for_timezone_conversion(self, monkeypatch, mock_station_df):
+        """Test that buffer years are fetched when converting to local time.
+
+        When convert_to_local=True, adjacent years are fetched to ensure complete
+        data at year boundaries after timezone offset is applied.
+        """
+        fetched_years = []
+
+        def mock_fetch(station_id, year, cache_path=None):
+            fetched_years.append(year)
+            return None
+
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [2020, 2021, 2022, 2023],
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+        monkeypatch.setattr("weathervault.weather._fetch_year_data", mock_fetch)
+
+        # Request just 2022
+        get_weather_data("725030-14732", years=2022, convert_to_local=True)
+
+        # Should fetch 2021, 2022, 2023 (requested year ± 1)
+        assert sorted(fetched_years) == [2021, 2022, 2023]
+
+    def test_no_buffer_years_when_convert_to_local_false(self, monkeypatch, mock_station_df):
+        """Test that buffer years are NOT fetched when keeping UTC time."""
+        fetched_years = []
+
+        def mock_fetch(station_id, year, cache_path=None):
+            fetched_years.append(year)
+            return None
+
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [2020, 2021, 2022, 2023],
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+        monkeypatch.setattr("weathervault.weather._fetch_year_data", mock_fetch)
+
+        # Request just 2022 with UTC time (no conversion)
+        get_weather_data("725030-14732", years=2022, convert_to_local=False)
+
+        # Should only fetch 2022 (no buffer years needed)
+        assert sorted(fetched_years) == [2022]
+
+    def test_buffer_years_for_non_contiguous_years(self, monkeypatch, mock_station_df):
+        """Test buffer years for non-contiguous year requests like [1950, 1960]."""
+        fetched_years = []
+
+        def mock_fetch(station_id, year, cache_path=None):
+            fetched_years.append(year)
+            return None
+
+        # Provide a wide range of available years
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: list(range(1945, 1970)),
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+        monkeypatch.setattr("weathervault.weather._fetch_year_data", mock_fetch)
+
+        # Request 1950 and 1960
+        get_weather_data("725030-14732", years=[1950, 1960], convert_to_local=True)
+
+        # Should fetch: 1949, 1950, 1951 (for 1950) and 1959, 1960, 1961 (for 1960)
+        assert sorted(fetched_years) == [1949, 1950, 1951, 1959, 1960, 1961]

@@ -479,3 +479,342 @@ class TestStationInfo:
         assert 40 < lat < 41
         assert -74 < lon < -73
         assert -10 < elev < 100  # Near sea level
+
+
+class TestYearAvailabilityWarnings:
+    """Tests for year availability warnings and error messages."""
+
+    @pytest.mark.network
+    def test_unavailable_year_raises_error_with_hint(self):
+        """Test that requesting an unavailable year raises error with available years hint."""
+        # Year 1900 should not have data for most stations
+        with pytest.raises(ValueError) as exc_info:
+            get_weather_data("725030-14732", years=1900)
+
+        error_msg = str(exc_info.value)
+        # Should mention the unavailable year
+        assert "1900" in error_msg
+        # Should provide hint about available years
+        assert "Available years" in error_msg
+        # Should suggest using get_years_for_station
+        assert "get_years_for_station" in error_msg
+
+    @pytest.mark.network
+    def test_multiple_unavailable_years_raises_error_with_hint(self):
+        """Test that requesting multiple unavailable years raises helpful error."""
+        with pytest.raises(ValueError) as exc_info:
+            get_weather_data("725030-14732", years=[1900, 1901, 1902])
+
+        error_msg = str(exc_info.value)
+        # Should mention unavailable years
+        assert "1900" in error_msg
+        # Should provide hint about available years
+        assert "Available years" in error_msg
+
+    @pytest.mark.network
+    def test_partial_data_warning(self):
+        """Test that partial data availability triggers a warning."""
+        import warnings
+
+        from weathervault.stations import get_years_for_station
+
+        # Get actual available years for the station
+        available_years = get_years_for_station("725030-14732")
+        if not available_years:
+            pytest.skip("No available years found for test station")
+
+        # Request mix of available and unavailable years
+        available_year = available_years[-1]  # Most recent available year
+        unavailable_year = 1900  # Should not be available
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = get_weather_data("725030-14732", years=[available_year, unavailable_year])
+
+            # Should have issued a warning
+            assert len(w) == 1
+            assert issubclass(w[0].category, UserWarning)
+            assert "Partial data returned" in str(w[0].message)
+            assert str(unavailable_year) in str(w[0].message)
+            assert str(available_year) in str(w[0].message)
+
+        # Should still return data for the available year
+        assert isinstance(result, pl.DataFrame)
+        assert result.height > 0
+        years_in_data = result["time"].dt.year().unique().to_list()
+        assert available_year in years_in_data
+
+    @pytest.mark.network
+    def test_all_years_available_no_warning(self):
+        """Test that no warning is issued when all requested years are available."""
+        import warnings
+
+        from weathervault.stations import get_years_for_station
+
+        # Get actual available years for the station
+        available_years = get_years_for_station("725030-14732")
+        if len(available_years) < 2:
+            pytest.skip("Not enough available years for test")
+
+        # Request only available years
+        years_to_request = available_years[-2:]  # Last 2 available years
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = get_weather_data("725030-14732", years=years_to_request)
+
+            # Should not have issued any warnings
+            partial_warnings = [warning for warning in w if "Partial data" in str(warning.message)]
+            assert len(partial_warnings) == 0
+
+        assert isinstance(result, pl.DataFrame)
+        assert result.height > 0
+
+    @pytest.mark.network
+    def test_single_unavailable_year_error_message_format(self):
+        """Test error message format for single unavailable year."""
+        with pytest.raises(ValueError) as exc_info:
+            get_weather_data("725030-14732", years=1850)
+
+        error_msg = str(exc_info.value)
+        # Should have well-formatted error with all needed info
+        assert "No data available for station '725030-14732'" in error_msg
+        assert "1850" in error_msg
+        assert "Available years:" in error_msg
+        assert "years total" in error_msg
+
+    @pytest.mark.network
+    def test_quiet_suppresses_partial_data_warning(self):
+        """Test that quiet=True suppresses the partial data warning."""
+        import warnings
+
+        from weathervault.stations import get_years_for_station
+
+        # Get actual available years for the station
+        available_years = get_years_for_station("725030-14732")
+        if not available_years:
+            pytest.skip("No available years found for test station")
+
+        # Request mix of available and unavailable years
+        available_year = available_years[-1]
+        unavailable_year = 1900
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = get_weather_data(
+                "725030-14732",
+                years=[available_year, unavailable_year],
+                quiet=True,
+            )
+
+            # Should NOT have issued any warnings
+            partial_warnings = [warning for warning in w if "Partial data" in str(warning.message)]
+            assert len(partial_warnings) == 0
+
+        # Should still return data for the available year
+        assert isinstance(result, pl.DataFrame)
+        assert result.height > 0
+
+
+class TestYearAvailabilityMocked:
+    """Mocked tests for year availability logic.
+
+    These tests mock get_years_for_station and get_station_metadata to test
+    all conditional paths without network access.
+    """
+
+    @pytest.fixture
+    def mock_station_df(self):
+        """Create a mock station metadata DataFrame."""
+        return pl.DataFrame(
+            {
+                "id": ["725030-14732"],
+                "tz_name": ["America/New_York"],
+                "name": ["LA GUARDIA AIRPORT"],
+                "country": ["United States"],
+                "state": ["NY"],
+                "icao": ["KLGA"],
+                "lat": [40.779],
+                "lon": [-73.88],
+                "elev": [3.4],
+            }
+        )
+
+    def test_all_requested_years_unavailable_raises_error(self, monkeypatch, mock_station_df):
+        """Test error when none of the requested years are available."""
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [2020, 2021, 2022, 2023],
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            get_weather_data("725030-14732", years=[1990, 1991, 1992])
+
+        error_msg = str(exc_info.value)
+        assert "No data available" in error_msg
+        assert "1990" in error_msg
+        assert "1991" in error_msg
+        assert "1992" in error_msg
+        assert "Available years: 2020-2023" in error_msg
+        assert "4 years total" in error_msg
+        assert "get_years_for_station" in error_msg
+
+    def test_partial_years_available_warns(self, monkeypatch, mock_station_df):
+        """Test warning when only some requested years are available."""
+        import warnings
+
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [2020, 2021, 2022, 2023],
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+        monkeypatch.setattr(
+            "weathervault.weather._fetch_year_data",
+            lambda station_id, year, cache_path=None: None,
+        )
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            # Request mix: 2022, 2023 available; 1990 not available
+            get_weather_data("725030-14732", years=[1990, 2022, 2023])
+
+            partial_warnings = [
+                warning for warning in w if "Partial data returned" in str(warning.message)
+            ]
+            assert len(partial_warnings) == 1
+            warning_msg = str(partial_warnings[0].message)
+            assert "1990" in warning_msg
+            assert "2022" in warning_msg
+            assert "2023" in warning_msg
+            assert "Available years for this station: 2020-2023" in warning_msg
+
+    def test_partial_years_quiet_suppresses_warning(self, monkeypatch, mock_station_df):
+        """Test that quiet=True suppresses partial data warning."""
+        import warnings
+
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [2020, 2021, 2022, 2023],
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+        monkeypatch.setattr(
+            "weathervault.weather._fetch_year_data",
+            lambda station_id, year, cache_path=None: None,
+        )
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            get_weather_data("725030-14732", years=[1990, 2022], quiet=True)
+
+            partial_warnings = [warning for warning in w if "Partial data" in str(warning.message)]
+            assert len(partial_warnings) == 0
+
+    def test_no_inventory_for_station_raises_error(self, monkeypatch, mock_station_df):
+        """Test error when station exists but has no inventory data."""
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [],
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            get_weather_data("725030-14732", years=2023)
+
+        error_msg = str(exc_info.value)
+        assert "No data inventory found" in error_msg
+        assert "725030-14732" in error_msg
+
+    def test_all_years_available_no_warning(self, monkeypatch, mock_station_df):
+        """Test no warning when all requested years are available."""
+        import warnings
+
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [2020, 2021, 2022, 2023],
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+        monkeypatch.setattr(
+            "weathervault.weather._fetch_year_data",
+            lambda station_id, year, cache_path=None: None,
+        )
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            get_weather_data("725030-14732", years=[2022, 2023])
+
+            partial_warnings = [warning for warning in w if "Partial data" in str(warning.message)]
+            assert len(partial_warnings) == 0
+
+    def test_single_unavailable_year_error_format(self, monkeypatch, mock_station_df):
+        """Test error message format for single unavailable year."""
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [2020, 2021, 2022, 2023],
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            get_weather_data("725030-14732", years=1985)
+
+        error_msg = str(exc_info.value)
+        assert "No data available for station '725030-14732' for year(s) 1985" in error_msg
+        assert "Available years: 2020-2023" in error_msg
+
+    def test_years_none_uses_all_available(self, monkeypatch, mock_station_df):
+        """Test that years=None fetches all available years."""
+        available = [2021, 2022, 2023]
+        fetched_years = []
+
+        def mock_fetch(station_id, year, cache_path=None):
+            fetched_years.append(year)
+            return None
+
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: available,
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+        monkeypatch.setattr("weathervault.weather._fetch_year_data", mock_fetch)
+
+        get_weather_data("725030-14732", years=None)
+
+        # Should have attempted to fetch all available years
+        assert sorted(fetched_years) == available
+
+    def test_years_none_with_no_data_raises_error(self, monkeypatch, mock_station_df):
+        """Test that years=None with no available data raises error."""
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [],
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            get_weather_data("725030-14732", years=None)
+
+        assert "No data available for station" in str(exc_info.value)

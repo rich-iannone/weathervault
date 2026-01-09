@@ -5,7 +5,10 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools_scm]
 
 [tool.setuptools.packages.find]
-include = ["weathervault"]
+include = ["weathervault", "weathervault.data"]
+
+[tool.setuptools.package-data]
+"weathervault.data" = ["*.gz"]
 
 [project]
 name = "weathervault"

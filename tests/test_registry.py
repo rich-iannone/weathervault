@@ -74,6 +74,68 @@ class TestStationNamespace:
         ns = _StationNamespace(stations={"TEST_STATION": "123456-99999"})
         assert ns.test_station == "123456-99999"
 
+    def test_case_insensitive_child_access(self):
+        """Test case-insensitive access for child namespaces."""
+        child = _StationNamespace(stations={"INNER": "111"})
+        ns = _StationNamespace(children={"CHILD_NS": child})
+        # Access with different case
+        assert ns.child_ns is child
+
+    def test_case_insensitive_station_when_no_child_match(self):
+        """Test case-insensitive station access when no child matches."""
+        # Namespace has both children and stations with different names
+        child = _StationNamespace(stations={"INNER": "111"})
+        ns = _StationNamespace(
+            children={"CHILD_NS": child},
+            stations={"MY_STATION": "123456-99999"},
+        )
+        # Access station with different case (no child has this name)
+        assert ns.my_station == "123456-99999"
+
+    def test_private_attribute_raises(self):
+        """Test that accessing private attributes raises AttributeError."""
+        ns = _StationNamespace(stations={"TEST": "123"})
+        with pytest.raises(AttributeError):
+            _ = ns._private
+
+    def test_repr_with_groups_only(self):
+        """Test repr when namespace has only groups (children)."""
+        child = _StationNamespace()
+        ns = _StationNamespace(children={"GROUP_A": child, "GROUP_B": child})
+        repr_str = repr(ns)
+        assert "2 groups" in repr_str
+        assert "stations" not in repr_str
+
+    def test_repr_with_stations_only(self):
+        """Test repr when namespace has only stations."""
+        ns = _StationNamespace(stations={"STATION_A": "1", "STATION_B": "2", "STATION_C": "3"})
+        repr_str = repr(ns)
+        assert "3 stations" in repr_str
+        assert "groups" not in repr_str
+
+    def test_repr_with_both(self):
+        """Test repr when namespace has both groups and stations."""
+        child = _StationNamespace()
+        ns = _StationNamespace(
+            stations={"STATION_A": "1"},
+            children={"GROUP_A": child},
+        )
+        repr_str = repr(ns)
+        assert "1 groups" in repr_str
+        assert "1 stations" in repr_str
+
+    def test_repr_empty(self):
+        """Test repr when namespace is empty."""
+        ns = _StationNamespace()
+        assert "empty" in repr(ns)
+
+    def test_ipython_key_completions(self):
+        """Test IPython bracket completion support."""
+        ns = _StationNamespace(stations={"A": "1", "B": "2"})
+        completions = ns._ipython_key_completions_()
+        assert "A" in completions
+        assert "B" in completions
+
 
 class TestStationRegistry:
     """Tests for the station registry singleton."""
@@ -104,6 +166,24 @@ class TestStationRegistry:
         assert isinstance(ny, _StationNamespace)
         # Should have stations
         assert len(dir(ny)) > 0
+
+    @pytest.mark.network
+    def test_registry_dir_after_load(self):
+        """Test dir() on registry after loading."""
+        # Access to trigger load
+        _ = wv.station.US
+        countries = dir(wv.station)
+        assert "US" in countries
+        assert len(countries) > 10  # Should have many countries
+
+    @pytest.mark.network
+    def test_registry_repr_after_load(self):
+        """Test repr shows country count after loading."""
+        # Access to trigger load
+        _ = wv.station.US
+        repr_str = repr(wv.station)
+        assert "countries" in repr_str
+        assert "not loaded" not in repr_str
 
     @pytest.mark.network
     def test_get_known_station_id(self):

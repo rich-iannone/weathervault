@@ -170,7 +170,7 @@ class _StationRegistry(_StationNamespace):
                 if state not in country_groups[country_code]:
                     country_groups[country_code][state] = {}
                 state_dict = country_groups[country_code][state]
-                if isinstance(state_dict, dict):
+                if isinstance(state_dict, dict):  # pragma: no branch
                     # Overwrite if same name (newer station replaces older)
                     state_dict[sanitized_name] = station_id
             else:

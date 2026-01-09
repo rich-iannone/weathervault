@@ -21,12 +21,6 @@ Obtain Polars DataFrames of historical weather data from NOAA's National Centers
 pip install weathervault
 ```
 
-Or install from source:
-
-```bash
-pip install git+https://github.com/rich-iannone/weathervault.git
-```
-
 ## Quick Start
 
 ```python

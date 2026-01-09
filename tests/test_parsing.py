@@ -394,6 +394,42 @@ class TestEmptyDataFrames:
         assert df.schema["wd"] == pl.Int32
         assert df.schema["ws"] == pl.Float64
 
+    def test_empty_processed_dataframe_time_as_columns(self):
+        """Test empty processed DataFrame with time_as_columns=True."""
+        df = _empty_processed_dataframe(time_as_columns=True)
+
+        assert isinstance(df, pl.DataFrame)
+        assert df.height == 0
+        # Should have separate time columns instead of 'time'
+        assert "time" not in df.columns
+        assert "year" in df.columns
+        assert "month" in df.columns
+        assert "day" in df.columns
+        assert "hour" in df.columns
+        assert "min" in df.columns
+        # Check types
+        assert df.schema["year"] == pl.Int32
+        assert df.schema["month"] == pl.Int32
+        assert df.schema["day"] == pl.Int32
+        assert df.schema["hour"] == pl.Int32
+        assert df.schema["min"] == pl.Int32
+
+    def test_empty_processed_dataframe_time_as_columns_with_stn_info(self):
+        """Test empty processed DataFrame with time_as_columns=True and incl_stn_info=True."""
+        df = _empty_processed_dataframe(time_as_columns=True, incl_stn_info=True)
+
+        assert isinstance(df, pl.DataFrame)
+        assert df.height == 0
+        # Should have separate time columns
+        assert "year" in df.columns
+        assert "min" in df.columns
+        # Should have station info columns
+        assert "name" in df.columns
+        assert "country" in df.columns
+        assert "lat" in df.columns
+        assert "lon" in df.columns
+        assert "elev" in df.columns
+
 
 class TestRelativeHumidityCalculation:
     """Tests for relative humidity calculation."""

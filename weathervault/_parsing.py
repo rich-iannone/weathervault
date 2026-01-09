@@ -77,7 +77,7 @@ def parse_isd_data(data: bytes | str) -> pl.DataFrame:
         text = data
 
     lines = text.strip().split("\n")
-    if not lines:
+    if not lines:  # pragma: no cover
         return _empty_weather_dataframe()
 
     # Parse each line

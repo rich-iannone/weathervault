@@ -729,6 +729,11 @@ class TestYearAvailabilityMocked:
             "weathervault.weather.get_station_metadata",
             lambda **kwargs: mock_station_df,
         )
+        # Mock bundled data to return empty (simulate no bundled data for this station)
+        monkeypatch.setattr(
+            "weathervault.weather._get_bundled_years",
+            lambda station_id: set(),
+        )
 
         with pytest.raises(ValueError) as exc_info:
             get_weather_data("725030-14732", years=2023)

@@ -297,26 +297,48 @@ def _empty_weather_dataframe() -> pl.DataFrame:
     return pl.DataFrame(schema=dict.fromkeys(MANDATORY_COLUMN_NAMES, pl.Utf8))
 
 
-def _empty_processed_dataframe(incl_stn_info: bool = False) -> pl.DataFrame:
+def _empty_processed_dataframe(
+    incl_stn_info: bool = False, time_as_columns: bool = False
+) -> pl.DataFrame:
     """Create an empty DataFrame with the processed weather schema.
 
     Parameters
     ----------
     incl_stn_info
         Whether to include station metadata columns in the schema.
+    time_as_columns
+        Whether to use separate time component columns instead of a single time column.
     """
-    schema = {
-        "id": pl.Utf8,
-        "time": pl.Datetime("us", "UTC"),
-        "temp": pl.Float64,
-        "dew_point": pl.Float64,
-        "rh": pl.Float64,
-        "wd": pl.Int32,
-        "ws": pl.Float64,
-        "atmos_pres": pl.Float64,
-        "ceil_hgt": pl.Int32,
-        "visibility": pl.Int32,
-    }
+    if time_as_columns:
+        schema = {
+            "id": pl.Utf8,
+            "year": pl.Int32,
+            "month": pl.Int32,
+            "day": pl.Int32,
+            "hour": pl.Int32,
+            "min": pl.Int32,
+            "temp": pl.Float64,
+            "dew_point": pl.Float64,
+            "rh": pl.Float64,
+            "wd": pl.Int32,
+            "ws": pl.Float64,
+            "atmos_pres": pl.Float64,
+            "ceil_hgt": pl.Int32,
+            "visibility": pl.Int32,
+        }
+    else:
+        schema = {
+            "id": pl.Utf8,
+            "time": pl.Datetime("us", "UTC"),
+            "temp": pl.Float64,
+            "dew_point": pl.Float64,
+            "rh": pl.Float64,
+            "wd": pl.Int32,
+            "ws": pl.Float64,
+            "atmos_pres": pl.Float64,
+            "ceil_hgt": pl.Int32,
+            "visibility": pl.Int32,
+        }
 
     if incl_stn_info:
         schema.update(

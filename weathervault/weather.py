@@ -82,6 +82,7 @@ def get_weather_data(
     make_hourly: bool = False,
     cache_dir: str | Path | None = None,
     incl_stn_info: bool = False,
+    time_as_columns: bool = False,
     quiet: bool = False,
 ) -> pl.DataFrame:
     """
@@ -115,6 +116,9 @@ def get_weather_data(
     incl_stn_info
         Whether to include station metadata in the output. When True, adds columns for station name,
         country, state, ICAO code, latitude, longitude, and elevation. Default is `False`.
+    time_as_columns
+        If `True`, output separate columns for time components (`year`, `month`, `day`, `hour`,
+        `min`) instead of a single `time` column. Default is `False`.
     quiet
         If `True`, suppress warning messages about partial data availability (when some requested
         years are not available). Default is `False`.
@@ -125,7 +129,8 @@ def get_weather_data(
         A DataFrame with weather observations containing:
 
         - `id`: Station identifier
-        - `time`: Observation time (local time if `convert_to_local=True`, else UTC)
+        - `time`: Observation time (local time if `convert_to_local=True`, else UTC); or if
+          `time_as_columns=True`: `year`, `month`, `day`, `hour`, `min` columns instead
         - `temp`: Air temperature (Celsius, Fahrenheit, or Kelvin based on `temp_unit=`)
         - `dew_point`: Dew point temperature
         - `rh`: Relative humidity (percentage)
@@ -340,7 +345,9 @@ def get_weather_data(
                 all_data.append(processed)
 
     if not all_data:
-        return _empty_processed_dataframe(incl_stn_info=incl_stn_info)
+        return _empty_processed_dataframe(
+            incl_stn_info=incl_stn_info, time_as_columns=time_as_columns
+        )
 
     # Combine all years
     result = pl.concat(all_data)
@@ -358,6 +365,10 @@ def get_weather_data(
         result = _make_hourly(
             result, requested_years, tz_name if convert_to_local else "UTC", incl_stn_info
         )
+
+    # Convert time to separate columns if requested
+    if time_as_columns:
+        result = _convert_time_to_columns(result, incl_stn_info)
 
     return result
 
@@ -554,3 +565,58 @@ def _make_hourly(
     result = result.select(columns)
 
     return result.sort("time")
+
+
+def _convert_time_to_columns(df: pl.DataFrame, incl_stn_info: bool = False) -> pl.DataFrame:
+    """
+    Convert time column to separate year, month, day, hour, min columns.
+
+    Parameters
+    ----------
+    df
+        Weather DataFrame with a `time` column.
+    incl_stn_info
+        Whether station metadata columns are present.
+
+    Returns
+    -------
+    pl.DataFrame
+        DataFrame with time split into separate columns.
+    """
+    if df.height == 0:
+        return _empty_processed_dataframe(incl_stn_info=incl_stn_info, time_as_columns=True)
+
+    # Extract time components
+    df = df.with_columns(
+        [
+            pl.col("time").dt.year().alias("year"),
+            pl.col("time").dt.month().alias("month"),
+            pl.col("time").dt.day().alias("day"),
+            pl.col("time").dt.hour().alias("hour"),
+            pl.col("time").dt.minute().alias("min"),
+        ]
+    )
+
+    # Build column order
+    columns = [
+        "id",
+        "year",
+        "month",
+        "day",
+        "hour",
+        "min",
+        "temp",
+        "dew_point",
+        "rh",
+        "wd",
+        "ws",
+        "atmos_pres",
+        "ceil_hgt",
+        "visibility",
+    ]
+
+    # Add station metadata columns if present
+    if incl_stn_info and "name" in df.columns:
+        columns.extend(["name", "country", "state", "icao", "lat", "lon", "elev"])
+
+    return df.select(columns)

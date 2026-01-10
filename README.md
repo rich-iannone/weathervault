@@ -1,7 +1,15 @@
 # weathervault
 
-[![Tests](https://github.com/rich-iannone/weathervault/actions/workflows/tests.yml/badge.svg)](https://github.com/rich-iannone/weathervault/actions/workflows/tests.yml)
+<div align="center">
+
 [![Python versions](https://img.shields.io/pypi/pyversions/weathervault.svg)](https://pypi.org/project/weathervault/)
+[![PyPI](https://img.shields.io/pypi/v/weathervault)](https://pypi.org/project/weathervault/#history)
+
+[![Tests](https://github.com/rich-iannone/weathervault/actions/workflows/tests.yml/badge.svg)](https://github.com/rich-iannone/weathervault/actions/workflows/tests.yml)
+[![Repo Status](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v2.1%20adopted-ff69b4.svg)](https://www.contributor-covenant.org/version/2/1/code_of_conduct.html)
+
+</div>
 
 Obtain Polars DataFrames of historical weather data from NOAA's National Centers for Environmental Information (NCEI) Integrated Surface Database (ISD).
 

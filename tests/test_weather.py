@@ -327,6 +327,91 @@ class TestHourlyResampling:
             # Values should still be in reasonable range
             assert all(-40 < t < 50 for t in temps)
 
+    def test_hourly_all_hours_regular_year(self):
+        """Test that all hours are present for a regular (non-leap) year."""
+        # Use bundled data for 2023 (non-leap year)
+        result = get_weather_data("725030-14732", years=2023, make_hourly=True)
+
+        # Regular year has 365 days * 24 hours = 8760 hours
+        expected_hours = 365 * 24
+        assert result.height == expected_hours, (
+            f"Expected {expected_hours} hourly records for 2023, got {result.height}"
+        )
+
+    def test_hourly_all_hours_leap_year(self):
+        """Test that all hours are present for a leap year."""
+        # Use bundled data for 2024 (leap year)
+        result = get_weather_data("725030-14732", years=2024, make_hourly=True)
+
+        # Leap year has 366 days * 24 hours = 8784 hours
+        expected_hours = 366 * 24
+        assert result.height == expected_hours, (
+            f"Expected {expected_hours} hourly records for 2024, got {result.height}"
+        )
+
+    def test_hourly_complete_december_coverage(self):
+        """Test that all hours of December (especially Dec 31) are present."""
+        # Use bundled data for 2024
+        result = get_weather_data(
+            "725030-14732", years=2024, make_hourly=True, time_as_columns=True
+        )
+
+        # Filter to December
+        december = result.filter(pl.col("month") == 12)
+
+        # December has 31 days * 24 hours = 744 hours
+        expected_hours = 31 * 24
+        assert december.height == expected_hours, (
+            f"Expected {expected_hours} hourly records for December 2024, got {december.height}"
+        )
+
+        # Specifically check December 31
+        dec_31 = result.filter((pl.col("month") == 12) & (pl.col("day") == 31))
+        assert dec_31.height == 24, (
+            f"Expected 24 hourly records for Dec 31, 2024, got {dec_31.height}"
+        )
+
+        # Verify all hours 0-23 are present
+        hours = dec_31["hour"].sort().to_list()
+        assert hours == list(range(24)), f"December 31 missing some hours. Found: {hours}"
+
+    def test_hourly_complete_january_coverage(self):
+        """Test that all hours of January (including Jan 1) are present."""
+        # Use bundled data for 2024
+        result = get_weather_data(
+            "725030-14732", years=2024, make_hourly=True, time_as_columns=True
+        )
+
+        # Filter to January
+        january = result.filter(pl.col("month") == 1)
+
+        # January has 31 days * 24 hours = 744 hours
+        expected_hours = 31 * 24
+        assert january.height == expected_hours, (
+            f"Expected {expected_hours} hourly records for January 2024, got {january.height}"
+        )
+
+        # Specifically check January 1
+        jan_1 = result.filter((pl.col("month") == 1) & (pl.col("day") == 1))
+        assert jan_1.height == 24, f"Expected 24 hourly records for Jan 1, 2024, got {jan_1.height}"
+
+        # Verify all hours 0-23 are present
+        hours = jan_1["hour"].sort().to_list()
+        assert hours == list(range(24)), f"January 1 missing some hours. Found: {hours}"
+
+    def test_hourly_multiple_years_correct_count(self):
+        """Test that multiple years have correct total hour count."""
+        # Use bundled data for 2023 (non-leap) and 2024 (leap)
+        result = get_weather_data("725030-14732", years=[2023, 2024], make_hourly=True)
+
+        # 2023: 365 days * 24 = 8760 hours
+        # 2024: 366 days * 24 = 8784 hours
+        # Total: 17544 hours
+        expected_hours = (365 + 366) * 24
+        assert result.height == expected_hours, (
+            f"Expected {expected_hours} hourly records for 2023-2024, got {result.height}"
+        )
+
 
 class TestStationIdFormats:
     """Tests for various station ID formats."""

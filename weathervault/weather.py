@@ -5,7 +5,7 @@ from __future__ import annotations
 import contextlib
 import importlib.resources
 import warnings
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -521,7 +521,8 @@ def _make_hourly(
     max_year = max(years)
 
     start_time = date(min_year, 1, 1)
-    end_time = date(max_year, 12, 31)
+    # Add one day to include all hours of the last day (00:00 through 23:00)
+    end_time = date(max_year, 12, 31) + timedelta(days=1)
 
     # Generate all hours in the range
     all_hours = pl.datetime_range(

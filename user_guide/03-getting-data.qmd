@@ -1,0 +1,254 @@
+---
+title: "Getting Weather Data"
+jupyter: python3
+---
+
+The `get_weather_data()` function is the main interface for downloading weather observations from the ISD database.
+
+## Basic Usage
+
+At minimum, you need a station ID:
+
+```{python}
+import weathervault as wv
+
+# Get all available data for a station
+weather = wv.get_weather_data("725030-14732")
+weather
+```
+
+By default, this downloads all available years for the station.
+
+## Specifying Years
+
+### Single Year
+
+```{python}
+# Get data for 2024
+weather_2024 = wv.get_weather_data("725030-14732", years=2024)
+weather_2024
+```
+
+### Multiple Years
+
+```{python}
+# Get data for specific years
+weather_range = wv.get_weather_data("725030-14732", years=[2023, 2024])
+weather_range
+```
+
+```{python}
+# Get a range of years
+years = [2023, 2024]
+weather_multi = wv.get_weather_data("725030-14732", years=years)
+weather_multi
+```
+
+## Temperature Units
+
+By default, temperatures are in Celsius. You can change this with the `temp_unit` parameter:
+
+```{python}
+# Fahrenheit
+weather_f = wv.get_weather_data("725030-14732", years=2024, temp_unit="fahrenheit")
+```
+
+```{python}
+# Kelvin
+weather_k = wv.get_weather_data("725030-14732", years=2024, temp_unit="kelvin")
+```
+
+Short forms are also supported:
+
+```{python}
+wv.get_weather_data("725030-14732", years=2024, temp_unit="f")  # Fahrenheit
+wv.get_weather_data("725030-14732", years=2024, temp_unit="c")  # Celsius
+wv.get_weather_data("725030-14732", years=2024, temp_unit="k")  # Kelvin
+```
+
+## Time Conversion
+
+### Local Time (Default)
+
+By default, timestamps are converted from UTC to the station's local timezone:
+
+```{python}
+# Times in America/New_York timezone
+weather_local = wv.get_weather_data("725030-14732", years=2024)
+print(weather_local["time"].dtype)  # datetime[μs, America/New_York]
+```
+
+This handles:
+
+- daylight saving time transitions
+- timezone offsets
+- year boundaries (buffer years are automatically fetched)
+
+### UTC Time
+
+To keep timestamps in UTC:
+
+```{python}
+# Times in UTC
+weather_utc = wv.get_weather_data(
+    "725030-14732",
+    years=2024,
+    convert_to_local=False
+)
+print(weather_utc["time"].dtype)  # datetime[μs, UTC]
+```
+
+## Hourly Resampling
+
+Weather observations are typically irregular (every hour, but sometimes more or less frequent). Use `make_hourly=True` to resample to exact hourly intervals:
+
+```{python}
+# Resample to hourly data
+weather_hourly = wv.get_weather_data(
+    "725030-14732",
+    years=2024,
+    make_hourly=True
+)
+
+# All observations at exact hours
+print(weather_hourly["time"].dt.minute().unique())  # [0]
+```
+
+This creates a complete hourly time series, with missing hours filled in as `null` values.
+
+## Including Station Metadata
+
+Add station information columns to each row:
+
+```{python}
+# Include station name, location, etc.
+weather_with_info = wv.get_weather_data(
+    "725030-14732",
+    years=2024,
+    incl_stn_info=True
+)
+
+# Additional columns: name, country, state, icao, lat, lon, elev
+weather_with_info[["id", "name", "lat", "lon", "elev"]]
+```
+
+This is useful when combining data from multiple stations.
+
+## Time as Separate Columns
+
+For some analyses, you may want time broken into year/month/day/hour/minute columns:
+
+```{python}
+# Split datetime into components
+weather_split = wv.get_weather_data(
+    "725030-14732",
+    years=2024,
+    time_as_columns=True
+)
+
+# Columns: id, year, month, day, hour, min, temp, ...
+weather_split[["year", "month", "day", "hour", "min"]]
+```
+
+## Local Caching
+
+To avoid re-downloading data, use local file caching:
+
+```{python}
+# Cache files in a specific directory
+weather = wv.get_weather_data(
+    "725030-14732",
+    years=2024,
+    cache_dir="./weather_cache"
+)
+```
+
+Subsequent calls will use cached files if available. To use the current directory:
+
+```{python}
+# Cache in current working directory
+weather = wv.get_weather_data("725030-14732", years=2024, cache_dir=".")
+```
+
+## Quiet Mode
+
+Suppress warnings about partial data:
+
+```{python}
+# No warnings about unavailable years
+weather = wv.get_weather_data(
+    "725030-14732",
+    years=[2020, 2021, 2022, 2023, 2024],
+    quiet=True
+)
+```
+
+## Error Handling
+
+### Invalid Station
+
+```{python}
+try:
+    weather = wv.get_weather_data("000000-00000", years=2024)
+except ValueError as e:
+    print(f"Error: {e}")
+    # Error: Station '000000-00000' not found in station metadata
+```
+
+### Unavailable Years
+
+```{python}
+try:
+    weather = wv.get_weather_data("725030-14732", years=1800)
+except ValueError as e:
+    print(f"Error: {e}")
+    # Error includes available year range
+```
+
+### Partial Data
+
+If some requested years are unavailable, weathervault warns you and returns the available years:
+
+```{python}
+# Request years that don't have data - raises ValueError
+try:
+    weather = wv.get_weather_data("725030-14732", years=list(range(1900, 1951)))
+except ValueError as e:
+    print(f"Error: {str(e)[:150]}...")
+```
+
+## Complete Example
+
+Here's a typical workflow combining multiple options:
+
+```{python}
+import weathervault as wv
+import polars as pl
+
+# Get weather data with custom options
+weather = wv.get_weather_data(
+    "725030-14732",  # LaGuardia Airport
+    years=2024,
+    temp_unit="celsius",
+    make_hourly=True,
+    incl_stn_info=True,
+    cache_dir="./cache"
+)
+
+# Quick analysis
+temp_stats = weather.select([
+    pl.col("temp").mean().alias("mean_temp"),
+    pl.col("temp").min().alias("min_temp"),
+    pl.col("temp").max().alias("max_temp"),
+])
+
+print(temp_stats)
+```
+
+## Performance Tips
+
+For best performance, always use caching by specifying `cache_dir` for repeated downloads (this avoids re-downloading the same data). Request specific years rather than downloading all available years if you only need recent data. When working with multiple years, batch your requests by downloading them in one call rather than making separate calls. Finally, if you don't need timezone conversion, set `convert_to_local=False` to avoid the local time overhead associated with timezone calculations.
+
+## Next Steps
+
+Learn about [data processing and analysis](04-data-processing.html) with weathervault.

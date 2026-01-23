@@ -1,0 +1,353 @@
+---
+title: "Data Processing"
+jupyter: python3
+---
+
+Once you have weather data, Polars provides powerful tools for analysis. This guide shows common data processing patterns.
+
+## Working with Polars DataFrames
+
+weathervault returns [Polars DataFrames](https://pola-rs.github.io/polars/), which offer:
+
+- fast performance (written in Rust)
+- expressive API similar to pandas
+- lazy evaluation support
+- excellent datetime handling
+
+```{python}
+import weathervault as wv
+import polars as pl
+
+weather = wv.get_weather_data("725030-14732", years=2024)
+```
+
+## Basic DataFrame Operations
+
+### Inspecting Data
+
+```{python}
+# Shape
+print(weather.shape)
+
+# Column names and types
+print(weather.schema)
+
+# First few rows
+weather.head()
+
+# Summary statistics
+weather.describe()
+```
+
+### Selecting Columns
+
+```{python}
+# Select specific columns
+temps = weather.select(["time", "temp", "dew_point"])
+temps
+```
+
+```{python}
+# Select multiple columns with expressions
+weather.select([
+    pl.col("time"),
+    pl.col("temp"),
+    pl.col("ws").alias("wind_speed")
+])
+```
+
+### Filtering Rows
+
+```{python}
+# Filter by temperature
+hot_days = weather.filter(pl.col("temp") > 30)
+hot_days
+```
+
+```{python}
+# Multiple conditions
+summer_hot = weather.filter(
+    (pl.col("temp") > 25) &
+    (pl.col("time").dt.month().is_in([6, 7, 8]))
+)
+summer_hot
+```
+
+```{python}
+# Filter non-null values
+complete_data = weather.filter(
+    pl.col("temp").is_not_null() &
+    pl.col("ws").is_not_null()
+)
+complete_data
+```
+
+## Time-Based Analysis
+
+### Extract Time Components
+
+```{python}
+# Add time components as new columns
+weather_with_time = weather.with_columns([
+    pl.col("time").dt.year().alias("year"),
+    pl.col("time").dt.month().alias("month"),
+    pl.col("time").dt.day().alias("day"),
+    pl.col("time").dt.hour().alias("hour"),
+    pl.col("time").dt.weekday().alias("weekday"),
+])
+
+weather_with_time[["time", "year", "month", "day", "hour"]]
+```
+
+### Filter by Time Range
+
+```{python}
+# Filter to a date range by extracting the date component
+jan_2024 = weather.filter(
+    (pl.col("time").dt.date() >= pl.date(2024, 1, 1)) &
+    (pl.col("time").dt.date() < pl.date(2024, 2, 1))
+)
+jan_2024
+```
+
+### Resample to Different Time Intervals
+
+```{python}
+# Daily aggregation
+daily = weather.group_by_dynamic("time", every="1d").agg([
+    pl.col("temp").mean().alias("mean_temp"),
+    pl.col("temp").min().alias("min_temp"),
+    pl.col("temp").max().alias("max_temp"),
+    pl.col("ws").mean().alias("mean_wind_speed"),
+])
+
+daily
+```
+
+```{python}
+# Monthly aggregation
+monthly = weather.group_by_dynamic("time", every="1mo").agg([
+    pl.col("temp").mean().alias("mean_temp"),
+    pl.col("temp").min().alias("min_temp"),
+    pl.col("temp").max().alias("max_temp"),
+    pl.col("rh").mean().alias("mean_humidity"),
+])
+
+monthly
+```
+
+## Handling Missing Values
+
+### Identify Missing Data
+
+```{python}
+# Count nulls per column
+null_counts = weather.null_count()
+null_counts
+```
+
+```{python}
+# Percentage of missing values
+missing_pct = (weather.null_count() / weather.height) * 100
+missing_pct
+```
+
+### Fill Missing Values
+
+```{python}
+# Forward fill
+weather_filled = weather.with_columns([
+    pl.col("temp").forward_fill().alias("temp_filled")
+])
+```
+
+```{python}
+# Fill with a specific value
+weather_filled = weather.with_columns([
+    pl.col("temp").fill_null(0)
+])
+```
+
+```{python}
+# Drop rows with any null values
+weather_complete = weather.drop_nulls()
+```
+
+## Temperature Conversions
+
+While weathervault supports built-in temperature unit conversion, you can also convert manually:
+
+```{python}
+# Celsius to Fahrenheit
+weather_manual = weather.with_columns([
+    ((pl.col("temp") * 9 / 5) + 32).alias("temp_f")
+])
+
+weather_manual[["temp", "temp_f"]]
+```
+
+```{python}
+# Celsius to Kelvin
+weather_manual = weather.with_columns([
+    (pl.col("temp") + 273.15).alias("temp_k")
+])
+
+weather_manual[["temp", "temp_k"]]
+```
+
+## Aggregations and Statistics
+
+### Basic Statistics
+
+```{python}
+# Calculate statistics for each numeric column
+weather.select([
+    pl.col("temp").mean().alias("mean_temp"),
+    pl.col("temp").median().alias("median_temp"),
+    pl.col("temp").std().alias("std_temp"),
+    pl.col("temp").quantile(0.25).alias("q25_temp"),
+    pl.col("temp").quantile(0.75).alias("q75_temp"),
+])
+```
+
+### Group By Operations
+
+```{python}
+# Monthly statistics
+monthly_stats = weather.group_by(pl.col("time").dt.month()).agg([
+    pl.col("temp").mean().alias("mean_temp"),
+    pl.col("temp").min().alias("min_temp"),
+    pl.col("temp").max().alias("max_temp"),
+    pl.col("rh").mean().alias("mean_humidity"),
+    pl.col("ws").mean().alias("mean_wind_speed"),
+    pl.len().alias("num_observations"),
+])
+
+monthly_stats.sort("time")
+```
+
+```{python}
+# Hourly patterns (average conditions by hour of day)
+hourly_pattern = weather.group_by(pl.col("time").dt.hour()).agg([
+    pl.col("temp").mean().alias("mean_temp"),
+    pl.col("ws").mean().alias("mean_wind_speed"),
+]).sort("time")
+
+hourly_pattern
+```
+
+## Combining Multiple Stations
+
+When analyzing multiple stations, you'll want to combine their data:
+
+```{python}
+# Get data from multiple stations
+lga = wv.get_weather_data("725030-14732", years=2024, incl_stn_info=True)
+jfk = wv.get_weather_data("744860-94789", years=2024, incl_stn_info=True)
+ewr = wv.get_weather_data("725020-14734", years=2024, incl_stn_info=True)
+
+# Concatenate vertically
+nyc_airports = pl.concat([lga, jfk, ewr])
+
+# Compare average temperatures
+comparison = nyc_airports.group_by(["id", "name"]).agg([
+    pl.col("temp").mean().alias("mean_temp"),
+    pl.col("temp").min().alias("min_temp"),
+    pl.col("temp").max().alias("max_temp"),
+])
+
+comparison
+```
+
+## Exporting Data
+
+### To CSV
+
+```python
+# Save to CSV
+weather.write_csv("weather_data.csv")
+```
+
+### To Parquet
+
+```python
+# Save to Parquet (more efficient for large datasets)
+weather.write_parquet("weather_data.parquet")
+```
+
+### To Pandas
+
+weathervault uses Polars DataFrames natively. If you need pandas compatibility, use `df.to_pandas()` (requires pyarrow).
+
+## Data Quality Checks
+
+### Identify Extreme Values
+
+```{python}
+# Find extreme temperatures
+extreme_temps = weather.filter(
+    (pl.col("temp") < -40) | (pl.col("temp") > 50)
+)
+
+if extreme_temps.height > 0:
+    print(f"Found {extreme_temps.height} extreme temperature values")
+    extreme_temps[["time", "temp"]]
+```
+
+### Check for Duplicate Timestamps
+
+```{python}
+# Find duplicate times
+duplicates = weather.filter(
+    pl.col("time").is_duplicated()
+)
+
+print(f"Duplicate timestamps: {duplicates.height}")
+```
+
+### Data Completeness Report
+
+```{python}
+# Create a completeness report
+completeness = pl.DataFrame({
+    "variable": weather.columns,
+    "total_obs": [weather.height] * len(weather.columns),
+    "missing": [weather[col].null_count() for col in weather.columns],
+}).with_columns([
+    (100 - (pl.col("missing") / pl.col("total_obs") * 100)).alias("completeness_pct")
+])
+
+completeness
+```
+
+## Advanced: Lazy Evaluation
+
+For very large datasets, use Polars lazy API:
+
+```{python}
+# Create a lazy query
+lazy_weather = weather.lazy()
+
+# Build a query (not executed yet)
+result_lazy = (
+    lazy_weather
+    .filter(pl.col("temp").is_not_null())
+    .group_by_dynamic("time", every="1d")
+    .agg([
+        pl.col("temp").mean().alias("mean_temp"),
+        pl.col("temp").max().alias("max_temp"),
+    ])
+)
+
+# Execute when needed
+result = result_lazy.collect()
+result
+```
+
+## Performance Tips
+
+For optimal performance, use Polars native operations instead of Python loops (vectorized operations are significantly faster). Always filter early by applying filters before aggregations to reduce data size. For complex queries on large datasets, consider using lazy evaluation with `.lazy()` to optimize the query execution plan. When saving or loading large datasets, prefer Parquet format over CSV as it's much faster and more efficient. Finally, select only the columns you need rather than loading entire datasets into memory.
+
+## Next Steps
+
+See [practical examples](05-examples.html) of weather data analysis with weathervault.

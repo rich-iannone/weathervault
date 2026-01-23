@@ -1,0 +1,93 @@
+---
+title: "Introduction"
+jupyter: python3
+---
+
+**weathervault** is a Python package for obtaining historical weather data from NOAA's National Centers for Environmental Information (NCEI) Integrated Surface Database (ISD). It provides a simple, intuitive API for downloading and processing weather station data, returning results as efficient Polars DataFrames ready for analysis.
+
+## Key Features
+
+- **Simple API**: Download weather data with a single function call
+- **Polars DataFrames**: Get data as efficient, fast DataFrames optimized for analysis
+- **Station Discovery**: Find weather stations by name, location, elevation, and more
+- **Automatic Time Conversion**: Convert UTC timestamps to local station time automatically
+- **Temperature Units**: Support for Celsius, Fahrenheit, and Kelvin
+- **Local Caching**: Optional file caching to avoid re-downloading data
+- **Global Coverage**: Access to the ISD network with 29,000+ weather stations worldwide
+
+## What is the Integrated Surface Database?
+
+The [Integrated Surface Database (ISD)](https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database) is NOAA's comprehensive archive of hourly and synoptic surface weather observations from around the world. It contains data from:
+
+- Airport weather stations (METAR data)
+- Land-based weather observation sites
+- Marine weather buoys and ships
+- Military installations
+
+The database spans from 1901 to present, with most stations having data from the 1970s onward.
+
+## Data Variables
+
+weathervault provides access to the following weather variables:
+
+| Variable | Description | Units |
+|----------|-------------|-------|
+| `temp` | Air temperature | °C (default), °F, or K |
+| `dew_point` | Dew point temperature | °C (default), °F, or K |
+| `rh` | Relative humidity | % |
+| `wd` | Wind direction | degrees (0-360) |
+| `ws` | Wind speed | m/s |
+| `atmos_pres` | Atmospheric pressure | hPa |
+| `ceil_hgt` | Ceiling height | meters |
+| `visibility` | Visibility distance | meters |
+
+## Installation
+
+Install weathervault from PyPI:
+
+```bash
+pip install weathervault
+```
+
+Or install from the latest GitHub source:
+
+```bash
+pip install git+https://github.com/rich-iannone/weathervault.git
+```
+
+## Quick Example
+
+Here's how to get weather data for LaGuardia Airport in New York for the year 2024:
+
+```python
+import weathervault as wv
+
+# Get weather data
+weather = wv.get_weather_data("725030-14732", years=2024)
+weather
+```
+
+The result is a Polars DataFrame with timestamps automatically converted to the station's local timezone (America/New_York):
+
+```
+shape: (13_420, 10)
+┌──────────────┬────────────────────────────────┬──────┬───────────┬──────┐
+│ id           ┆ time                           ┆ temp ┆ dew_point ┆ rh   │
+│ ---          ┆ ---                            ┆ ---  ┆ ---       ┆ ---  │
+│ str          ┆ datetime[μs, America/New_York] ┆ f64  ┆ f64       ┆ f64  │
+╞══════════════╪════════════════════════════════╪══════╪═══════════╪══════╡
+│ 725030-14732 ┆ 2024-01-01 00:51:00 EST        ┆ 6.1  ┆ -2.8      ┆ 52.9 │
+│ 725030-14732 ┆ 2024-01-01 01:00:00 EST        ┆ 6.1  ┆ -2.8      ┆ 52.9 │
+│ 725030-14732 ┆ 2024-01-01 01:51:00 EST        ┆ 6.1  ┆ -2.8      ┆ 52.9 │
+│ …            ┆ …                              ┆ …    ┆ …         ┆ …    │
+└──────────────┴────────────────────────────────┴──────┴───────────┴──────┘
+```
+
+## Next Steps
+
+Continue reading to learn more:
+
+- [Finding Stations](02-finding-stations.html) – Discover weather stations by location, name, and attributes
+- [Getting Weather Data](03-getting-data.html) – Download and customize weather data
+- [Data Processing](04-data-processing.html) – Work with timestamps, units, and hourly data
+- [Examples](05-examples.html) – Real-world analysis examples

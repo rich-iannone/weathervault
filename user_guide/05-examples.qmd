@@ -1,0 +1,377 @@
+---
+title: "Examples"
+jupyter: python3
+---
+
+This page demonstrates practical weather data analysis using weathervault.
+
+## Temperature Analysis
+
+### Daily Temperature Range
+
+Calculate and visualize daily temperature ranges:
+
+```{python}
+import weathervault as wv
+import polars as pl
+
+# Get hourly data for a full year
+weather = wv.get_weather_data("725030-14732", years=2024, make_hourly=True)
+
+# Calculate daily min/max/mean temperatures
+daily_temps = weather.group_by_dynamic("time", every="1d").agg([
+    pl.col("temp").min().alias("min_temp"),
+    pl.col("temp").max().alias("max_temp"),
+    pl.col("temp").mean().alias("mean_temp"),
+]).with_columns([
+    (pl.col("max_temp") - pl.col("min_temp")).alias("temp_range")
+])
+
+# Find days with largest temperature swings
+print("Days with largest temperature swings:")
+daily_temps.sort("temp_range", descending=True).head(10)
+```
+
+### Monthly Temperature Trends
+
+```{python}
+# Monthly average temperatures
+monthly = weather.group_by_dynamic("time", every="1mo").agg([
+    pl.col("temp").mean().alias("mean_temp"),
+    pl.col("temp").min().alias("min_temp"),
+    pl.col("temp").max().alias("max_temp"),
+])
+
+monthly
+```
+
+### Temperature Distribution by Month
+
+```{python}
+# Temperature statistics by month
+monthly_dist = weather.group_by(pl.col("time").dt.month()).agg([
+    pl.col("temp").mean().alias("mean"),
+    pl.col("temp").median().alias("median"),
+    pl.col("temp").std().alias("std"),
+    pl.col("temp").quantile(0.25).alias("q25"),
+    pl.col("temp").quantile(0.75).alias("q75"),
+]).sort("time")
+
+monthly_dist
+```
+
+## Wind Analysis
+
+### Wind Speed Statistics
+
+```{python}
+# Wind speed analysis
+wind_stats = weather.filter(pl.col("ws").is_not_null()).select([
+    pl.col("ws").mean().alias("mean_wind_speed"),
+    pl.col("ws").max().alias("max_wind_speed"),
+    pl.col("ws").quantile(0.95).alias("wind_95th_percentile"),
+])
+
+print(wind_stats)
+```
+
+### Prevailing Wind Direction
+
+```{python}
+# Most common wind directions
+wind_dirs = weather.filter(
+    pl.col("wd").is_not_null()
+).group_by("wd").agg([
+    pl.len().alias("count")
+]).sort("count", descending=True)
+
+print("Top 5 wind directions:")
+print(wind_dirs.head(5))
+```
+
+### Calm vs Windy Days
+
+```{python}
+# Classify days by wind speed
+daily_wind = weather.group_by_dynamic("time", every="1d").agg([
+    pl.col("ws").mean().alias("mean_wind_speed"),
+    pl.col("ws").max().alias("max_wind_speed"),
+])
+
+calm_days = daily_wind.filter(pl.col("mean_wind_speed") < 2).height
+windy_days = daily_wind.filter(pl.col("mean_wind_speed") > 5).height
+
+print(f"Calm days (< 2 m/s): {calm_days}")
+print(f"Windy days (> 5 m/s): {windy_days}")
+```
+
+## Humidity and Comfort
+
+### Relative Humidity Distribution
+
+```{python}
+# Humidity statistics by season
+weather_with_season = weather.with_columns([
+    pl.col("time").dt.month().alias("month")
+]).with_columns([
+    pl.when(pl.col("month").is_in([12, 1, 2])).then(pl.lit("Winter"))
+    .when(pl.col("month").is_in([3, 4, 5])).then(pl.lit("Spring"))
+    .when(pl.col("month").is_in([6, 7, 8])).then(pl.lit("Summer"))
+    .otherwise(pl.lit("Fall"))
+    .alias("season")
+])
+
+seasonal_humidity = weather_with_season.group_by("season").agg([
+    pl.col("rh").mean().alias("mean_humidity"),
+    pl.col("rh").min().alias("min_humidity"),
+    pl.col("rh").max().alias("max_humidity"),
+])
+
+seasonal_humidity
+```
+
+### Heat Index Calculation
+
+Calculate apparent temperature combining heat and humidity:
+
+```{python}
+# Simplified heat index formula (Fahrenheit)
+# HI = c1 + c2*T + c3*RH + c4*T*RH + c5*T^2 + c6*RH^2 + c7*T^2*RH + c8*T*RH^2 + c9*T^2*RH^2
+
+def calculate_heat_index(temp_c, rh):
+    """Calculate heat index from temperature (C) and relative humidity (%)."""
+    # Convert to Fahrenheit
+    T = (temp_c * 9/5) + 32
+    RH = rh
+
+    # Rothfusz regression (valid for T >= 80°F, RH >= 40%)
+    HI = (
+        -42.379 +
+        2.04901523 * T +
+        10.14333127 * RH -
+        0.22475541 * T * RH -
+        0.00683783 * T * T -
+        0.05481717 * RH * RH +
+        0.00122874 * T * T * RH +
+        0.00085282 * T * RH * RH -
+        0.00000199 * T * T * RH * RH
+    )
+
+    # Convert back to Celsius
+    return (HI - 32) * 5/9
+
+# Calculate heat index for summer
+summer = weather_with_season.filter(
+    pl.col("season") == "Summer"
+).filter(
+    pl.col("temp").is_not_null() & pl.col("rh").is_not_null()
+)
+
+# Find hot, humid days
+hot_humid = summer.filter(
+    (pl.col("temp") > 27) & (pl.col("rh") > 60)
+).select([
+    "time", "temp", "rh"
+])
+
+print(f"Hot and humid observations: {hot_humid.height}")
+hot_humid.head(10)
+```
+
+## Precipitation Indicators
+
+While ISD data doesn't directly provide precipitation amounts, we can infer wet conditions from high humidity and low visibility:
+
+```{python}
+# Identify likely precipitation events
+wet_conditions = weather.filter(
+    (pl.col("rh") > 95) &
+    (pl.col("visibility") < 5000)  # Less than 5km visibility
+).select([
+    "time", "temp", "rh", "visibility"
+])
+
+print(f"Observations with likely precipitation: {wet_conditions.height}")
+wet_conditions.head(10)
+```
+
+## Multi-Station Comparison
+
+Compare weather patterns across nearby stations:
+
+```{python}
+# Get data for three NYC airports
+lga = wv.get_weather_data("725030-14732", years=2024, incl_stn_info=True)
+jfk = wv.get_weather_data("744860-94789", years=2024, incl_stn_info=True)
+ewr = wv.get_weather_data("725020-14734", years=2024, incl_stn_info=True)
+
+# Combine
+nyc = pl.concat([lga, jfk, ewr])
+
+# Compare temperature statistics
+comparison = nyc.group_by(["id", "name"]).agg([
+    pl.col("temp").mean().alias("mean_temp"),
+    pl.col("temp").std().alias("std_temp"),
+    pl.col("temp").min().alias("min_temp"),
+    pl.col("temp").max().alias("max_temp"),
+    pl.len().alias("num_obs"),
+])
+
+comparison
+```
+
+### Temperature Differences
+
+```{python}
+# Align data by hour and calculate differences
+# (simplified - assumes matching timestamps)
+lga_hourly = lga.filter(pl.col("temp").is_not_null()).select([
+    "time", pl.col("temp").alias("lga_temp")
+]).sort("time")
+
+jfk_hourly = jfk.filter(pl.col("temp").is_not_null()).select([
+    "time", pl.col("temp").alias("jfk_temp")
+]).sort("time")
+
+# Join on time
+temp_diff = lga_hourly.join(jfk_hourly, on="time").with_columns([
+    (pl.col("lga_temp") - pl.col("jfk_temp")).abs().alias("temp_difference")
+])
+
+print(f"Mean temperature difference: {temp_diff['temp_difference'].mean():.2f}°C")
+print(f"Max temperature difference: {temp_diff['temp_difference'].max():.2f}°C")
+```
+
+## Historical Trends
+
+Analyze long-term climate trends:
+
+```{python}
+# Get multiple years of data
+years = [2022, 2023, 2024]
+historical = wv.get_weather_data("725030-14732", years=years)
+
+# Annual average temperatures
+annual = historical.group_by(pl.col("time").dt.year()).agg([
+    pl.col("temp").mean().alias("mean_temp"),
+    pl.col("temp").min().alias("min_temp"),
+    pl.col("temp").max().alias("max_temp"),
+]).sort("time")
+
+annual
+```
+
+### Warming Trends
+
+```{python}
+# Calculate linear trend (simplified)
+annual_means = annual["mean_temp"].to_list()
+years_numeric = list(range(len(annual_means)))
+
+# Simple difference between first and last 5 years
+first_5_years = sum(annual_means[:5]) / 5
+last_5_years = sum(annual_means[-5:]) / 5
+
+print(f"First 5 years average: {first_5_years:.2f}°C")
+print(f"Last 5 years average: {last_5_years:.2f}°C")
+print(f"Change: {last_5_years - first_5_years:+.2f}°C")
+```
+
+## Extreme Weather Events
+
+### Heat Waves
+
+Identify prolonged periods of high temperatures:
+
+```{python}
+# Daily maximum temperatures
+daily_max = weather.group_by_dynamic("time", every="1d").agg([
+    pl.col("temp").max().alias("max_temp")
+])
+
+# Find consecutive hot days (> 30°C)
+hot_threshold = 30
+hot_days = daily_max.filter(pl.col("max_temp") > hot_threshold)
+
+print(f"Days exceeding {hot_threshold}°C: {hot_days.height}")
+hot_days.head(10)
+```
+
+### Cold Snaps
+
+```{python}
+# Daily minimum temperatures
+daily_min = weather.group_by_dynamic("time", every="1d").agg([
+    pl.col("temp").min().alias("min_temp")
+])
+
+# Find freezing days
+freezing_days = daily_min.filter(pl.col("min_temp") < 0)
+
+print(f"Days with freezing temperatures: {freezing_days.height}")
+freezing_days.head(10)
+```
+
+## Data Quality Assessment
+
+### Observation Frequency
+
+```{python}
+# Calculate time gaps between observations
+weather_sorted = weather.sort("time")
+
+time_diffs = weather_sorted.select([
+    pl.col("time"),
+    pl.col("time").diff().dt.total_minutes().alias("minutes_since_last")
+])
+
+# Distribution of observation intervals
+print(time_diffs["minutes_since_last"].describe())
+```
+
+### Data Completeness by Variable
+
+```{python}
+# Calculate completeness percentage for each variable
+completeness = pl.DataFrame({
+    "variable": ["temp", "dew_point", "rh", "wd", "ws", "atmos_pres", "ceil_hgt", "visibility"],
+    "completeness_%": [
+        (weather["temp"].is_not_null().sum() / weather.height * 100),
+        (weather["dew_point"].is_not_null().sum() / weather.height * 100),
+        (weather["rh"].is_not_null().sum() / weather.height * 100),
+        (weather["wd"].is_not_null().sum() / weather.height * 100),
+        (weather["ws"].is_not_null().sum() / weather.height * 100),
+        (weather["atmos_pres"].is_not_null().sum() / weather.height * 100),
+        (weather["ceil_hgt"].is_not_null().sum() / weather.height * 100),
+        (weather["visibility"].is_not_null().sum() / weather.height * 100),
+    ]
+}).sort("completeness_%", descending=True)
+
+completeness
+```
+
+## Exporting for Visualization
+
+Prepare data for plotting with other libraries:
+
+```{python}
+# Create a clean dataset for visualization
+viz_data = weather.select([
+    "time",
+    "temp",
+    "dew_point",
+    "rh",
+    "ws",
+]).filter(
+    pl.col("temp").is_not_null()
+)
+
+# Save to CSV for use with matplotlib, seaborn, plotly, etc.
+viz_data.write_csv("weather_viz_data.csv")
+```
+
+## Next Steps
+
+- explore the [API Reference](../reference/index.html) for detailed function documentation
+- check the [GitHub repository](https://github.com/rich-iannone/weathervault) for more examples
+- report issues or contribute at [github.com/rich-iannone/weathervault](https://github.com/rich-iannone/weathervault)

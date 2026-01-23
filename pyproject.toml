@@ -64,7 +64,7 @@ dev = [
 [project.urls]
 Homepage = "https://github.com/rich-iannone/weathervault"
 Repository = "https://github.com/rich-iannone/weathervault"
-"Bug Tracker" = "https://github.com/rich-iannone/gweathervault/issues"
+"Bug Tracker" = "https://github.com/rich-iannone/weathervault/issues"
 
 [tool.ruff]
 line-length = 100

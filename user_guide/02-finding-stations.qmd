@@ -1,0 +1,236 @@
+---
+title: "Finding Weather Stations"
+jupyter: python3
+---
+
+Before you can download weather data, you need to know the station ID. weathervault provides several functions to help you discover weather stations.
+
+## Station Metadata
+
+The `get_station_metadata()` function returns information about all weather stations in the ISD network:
+
+```{python}
+import weathervault as wv
+
+# Get metadata for all stations
+stations = wv.get_station_metadata()
+stations
+```
+
+The returned DataFrame contains:
+
+- `id` – Station identifier in USAF-WBAN format
+- `usaf` – USAF station number
+- `wban` – WBAN station number
+- `name` – Station name
+- `country_code` – FIPS country code
+- `country` – Country name
+- `state` – State/province (US/CA stations)
+- `icao` – ICAO airport code (if applicable)
+- `lat`, `lon` – Station coordinates
+- `elev` – Elevation in meters
+- `begin_date`, `end_date` – Period of record
+- `tz_name` – IANA timezone name
+
+## Searching for Stations
+
+The `search_stations()` function lets you filter stations by various criteria:
+
+### By Country
+
+Use the convenient `wv.country` shorthand for clean, readable code with IDE autocomplete:
+
+```{python}
+# Find all stations in Germany
+de_stations = wv.search_stations(country_code=wv.country.DE)
+de_stations
+```
+
+You can also search by country name:
+
+```{python}
+# Find stations in Japan
+japan_stations = wv.search_stations(country="Japan")
+japan_stations
+```
+
+### By US State
+
+For US stations, use the `wv.state` shorthand:
+
+```{python}
+# Find stations in California
+ca_stations = wv.search_stations(state=wv.state.CA)
+ca_stations
+```
+
+Multiple states can be searched at once:
+
+```{python}
+# Find stations in California
+california = wv.search_stations(state=wv.state.CA)
+california
+```
+
+### By Geographic Bounding Box
+
+Search for stations within a latitude/longitude range:
+
+```{python}
+# Find stations in the New York City area
+nyc_stations = wv.search_stations(
+    lat_range=(40.5, 41.0),
+    lon_range=(-74.5, -73.5)
+)
+nyc_stations
+```
+
+This is useful for:
+- Finding all stations in a specific region
+- Identifying nearby stations for spatial analysis
+- Creating regional datasets
+
+### By Station Name
+
+Search by station name (case-insensitive, partial matching):
+
+```{python}
+# Find Tokyo International Airport
+tokyo_airports = wv.search_stations(name="tokyo international")
+tokyo_airports
+```
+
+```{python}
+# Find all "LaGuardia" stations
+lga = wv.search_stations(name="laguardia")
+lga
+```
+
+### Combined Searches
+
+You can combine multiple search criteria:
+
+```{python}
+# Find California airports with "international" in the name
+ca_intl_airports = wv.search_stations(
+    state=wv.state.CA,
+    name="international"
+)
+ca_intl_airports
+```
+
+```{python}
+# Find German stations in a specific region
+region_de = wv.search_stations(
+    country_code=wv.country.DE,
+    lat_range=(50.0, 52.0),
+    lon_range=(8.0, 10.0)
+)
+region_de
+```
+
+## Checking Available Years
+
+Once you've found a station, use `get_years_for_station()` to see what years have data:
+
+```{python}
+# Check available years for LaGuardia Airport
+years = wv.get_years_for_station("725030-14732")
+print(f"Data available: {min(years)} to {max(years)}")
+print(f"Total years: {len(years)}")
+```
+
+## Station Inventory Details
+
+For more detailed information about data availability, use `get_inventory()`:
+
+```{python}
+import polars as pl
+
+# Get detailed inventory for a station
+inventory = wv.get_inventory()
+station_inv = inventory.filter(pl.col("id") == "725030-14732")
+station_inv
+```
+
+This returns monthly observation counts, useful for assessing data completeness before downloading.
+
+## Using the Station Registry
+
+weathervault includes a convenient registry for accessing commonly used stations hierarchically:
+
+```{python}
+# Access US stations by state and name
+laguardia = wv.station.us.ny.la_guardia_airport
+print(f"Station ID: {laguardia}")
+```
+
+```{python}
+# Access international stations
+# For non-US stations, use search_stations to find them
+munich = wv.search_stations(name="MUNICH", country="Germany").head(1)
+munich
+```
+
+The registry provides:
+
+- IDE autocomplete for easy station discovery
+- hierarchical organization (country -> state/region -> station)
+- sanitized names (spaces replaced with underscores, lowercased)
+
+To explore available stations in the registry:
+
+```python
+# See available countries
+dir(wv.station)
+```
+
+```python
+# See US states
+dir(wv.station.us)
+```
+
+```python
+# See stations in New York
+dir(wv.station.us.ny)
+```
+
+## Country and State Codes
+
+weathervault provides convenient access to country and US state codes:
+
+### Country Codes
+
+```{python}
+# List all available countries
+countries = wv.get_countries()
+countries
+```
+
+### Access Country Codes
+
+```{python}
+# Get code for a country
+wv.country.FR  # France
+wv.country.JP  # Japan
+wv.country.GB  # United Kingdom
+```
+
+### US State Codes
+
+```{python}
+# Access US state codes
+wv.state.NY  # New York
+wv.state.TX  # Texas
+wv.state.HI  # Hawaii
+```
+
+These shorthands make your code more readable and provide IDE autocomplete support.
+
+## Tips for Finding Stations
+
+When searching for weather stations, start broad, then narrow your search (begin with a geographic search or country filter, then refine by name). Always check data availability by verifying years and data completeness before large downloads. Keep in mind that many airports have multiple station IDs representing different time periods, and stations at similar locations may have overlapping coverage. Generally, newer stations often have more complete data than historical ones.
+
+## Next Steps
+
+Now that you know how to find stations, learn how to [get weather data](03-getting-data.html).

@@ -25,6 +25,18 @@ dynamic: false
 #   - InternalClass
 #   - helper_function
 
+# Author Information
+# ------------------
+# Author metadata for display in the landing page sidebar
+# You can add additional fields: github, orcid, affiliation, homepage
+authors:
+  - name: Rich Iannone
+    role: Maintainer
+    # affiliation: 
+    email: riannone@me.com
+    # github: 
+    # orcid: 
+
 # API Reference Structure
 # -----------------------
 # Customize the sections below to organize your API documentation.
@@ -41,13 +53,12 @@ reference:
       - get_inventory
       - get_station_metadata
       - get_weather_data
+      - get_years_for_station
       - search_stations
 
 # Site Settings
 # -------------
-site:
-  execute:
-    enabled: true # Execute code examples in documentation
+# site:
 #   theme: flatly              # Quarto theme (default: flatly)
 #   toc: true                  # Show table of contents (default: true)
 #   toc-depth: 2               # TOC heading depth (default: 2)
@@ -59,8 +70,7 @@ site:
 # This is set at the project level so it applies to all pages, including
 # auto-generated API reference pages. Can be overridden in individual .qmd
 # file frontmatter if needed for special cases.
-jupyter: python3 # Default: python3
-
+jupyter: python3
 
 # CLI Documentation
 # -----------------

@@ -20,6 +20,7 @@ from weathervault.stations import (
     get_countries,
     get_inventory,
     get_station_metadata,
+    get_years_for_station,
     search_stations,
 )
 from weathervault.weather import get_weather_data
@@ -36,6 +37,7 @@ __all__ = [
     "search_stations",
     "get_inventory",
     "get_countries",
+    "get_years_for_station",
     # Station registry for autocomplete
     "station",
     # Constants

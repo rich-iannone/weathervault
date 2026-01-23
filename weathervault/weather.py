@@ -166,7 +166,7 @@ def get_weather_data(
     ```{python}
     weather = wv.get_weather_data(
         "725030-14732",  # LaGuardia Airport
-        years=[2022, 2023],
+        years=2023,
         temp_unit="fahrenheit"
     )
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.resources
 import io
 from typing import TYPE_CHECKING
 
@@ -93,22 +94,39 @@ def get_station_metadata(
             # Cache doesn't have timezone, and we don't need it
             return _station_metadata_cache
         # Otherwise, cache doesn't have timezone but we need it: refetch
+    # Check for bundled data first (used for documentation examples)
+    try:
+        data_files = importlib.resources.files("weathervault.data")
+        bundled_file = data_files.joinpath("isd-history.csv")
+        if bundled_file.is_file():
+            df = pl.read_csv(
+                bundled_file.read_bytes(),
+                schema_overrides={
+                    "USAF": pl.Utf8,
+                    "WBAN": pl.Utf8,
+                    "BEGIN": pl.Utf8,
+                    "END": pl.Utf8,
+                },
+            )
+        else:
+            raise FileNotFoundError  # Continue to download
+    except (ModuleNotFoundError, FileNotFoundError, TypeError):
+        # No bundled data available, download from NCEI
+        url = f"{BASE_URL}/isd-history.csv"
 
-    url = f"{BASE_URL}/isd-history.csv"
+        with httpx.Client(timeout=60.0) as client:
+            response = client.get(url)
+            response.raise_for_status()
 
-    with httpx.Client(timeout=60.0) as client:
-        response = client.get(url)
-        response.raise_for_status()
-
-    df = pl.read_csv(
-        io.BytesIO(response.content),
-        schema_overrides={
-            "USAF": pl.Utf8,
-            "WBAN": pl.Utf8,
-            "BEGIN": pl.Utf8,
-            "END": pl.Utf8,
-        },
-    )
+        df = pl.read_csv(
+            io.BytesIO(response.content),
+            schema_overrides={
+                "USAF": pl.Utf8,
+                "WBAN": pl.Utf8,
+                "BEGIN": pl.Utf8,
+                "END": pl.Utf8,
+            },
+        )
 
     # Rename columns to be more Pythonic
     df = df.rename(
@@ -227,6 +245,8 @@ def get_inventory(*, force_refresh: bool = False) -> pl.DataFrame:
 
     ```{python}
     import weathervault as wv
+    import polars as pl
+
     inventory = wv.get_inventory()
     inventory.filter(pl.col("id") == "725030-14732")
     ```
@@ -236,19 +256,35 @@ def get_inventory(*, force_refresh: bool = False) -> pl.DataFrame:
     if _inventory_cache is not None and not force_refresh:
         return _inventory_cache
 
-    url = f"{BASE_URL}/isd-inventory.csv"
+    # Check for bundled data first (used for documentation examples)
+    try:
+        data_files = importlib.resources.files("weathervault.data")
+        bundled_file = data_files.joinpath("isd-inventory.csv")
+        if bundled_file.is_file():
+            df = pl.read_csv(
+                bundled_file.read_bytes(),
+                schema_overrides={
+                    "USAF": pl.Utf8,
+                    "WBAN": pl.Utf8,
+                },
+            )
+        else:
+            raise FileNotFoundError  # Continue to download
+    except (ModuleNotFoundError, FileNotFoundError, TypeError):
+        # No bundled data available, download from NCEI
+        url = f"{BASE_URL}/isd-inventory.csv"
 
-    with httpx.Client(timeout=60.0) as client:
-        response = client.get(url)
-        response.raise_for_status()
+        with httpx.Client(timeout=60.0) as client:
+            response = client.get(url)
+            response.raise_for_status()
 
-    df = pl.read_csv(
-        io.BytesIO(response.content),
-        schema_overrides={
-            "USAF": pl.Utf8,
-            "WBAN": pl.Utf8,
-        },
-    )
+        df = pl.read_csv(
+            io.BytesIO(response.content),
+            schema_overrides={
+                "USAF": pl.Utf8,
+                "WBAN": pl.Utf8,
+            },
+        )
 
     # Rename columns
     df = df.rename(

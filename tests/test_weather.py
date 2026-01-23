@@ -1,9 +1,21 @@
 """Tests for the weather module."""
 
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import httpx
 import polars as pl
 import pytest
 
-from weathervault.weather import get_weather_data
+from weathervault.weather import (
+    _convert_time_to_columns,
+    _fetch_year_data,
+    _get_bundled_years,
+    _make_hourly,
+    _normalize_temp_unit,
+    get_weather_data,
+)
 
 
 class TestGetWeatherData:
@@ -988,3 +1000,455 @@ class TestYearAvailabilityMocked:
 
         # Should fetch: 1949, 1950, 1951 (for 1950) and 1959, 1960, 1961 (for 1960)
         assert sorted(fetched_years) == [1949, 1950, 1951, 1959, 1960, 1961]
+
+
+class TestPrivateFunctions:
+    """Tests for private helper functions."""
+
+    def test_normalize_temp_unit_celsius(self):
+        """Test normalizing Celsius variants."""
+        assert _normalize_temp_unit("c") == "celsius"
+        assert _normalize_temp_unit("C") == "celsius"
+        assert _normalize_temp_unit("celsius") == "celsius"
+        assert _normalize_temp_unit("Celsius") == "celsius"
+        assert _normalize_temp_unit(" celsius ") == "celsius"
+
+    def test_normalize_temp_unit_fahrenheit(self):
+        """Test normalizing Fahrenheit variants."""
+        assert _normalize_temp_unit("f") == "fahrenheit"
+        assert _normalize_temp_unit("F") == "fahrenheit"
+        assert _normalize_temp_unit("fahrenheit") == "fahrenheit"
+        assert _normalize_temp_unit("Fahrenheit") == "fahrenheit"
+
+    def test_normalize_temp_unit_kelvin(self):
+        """Test normalizing Kelvin variants."""
+        assert _normalize_temp_unit("k") == "kelvin"
+        assert _normalize_temp_unit("K") == "kelvin"
+        assert _normalize_temp_unit("kelvin") == "kelvin"
+        assert _normalize_temp_unit("Kelvin") == "kelvin"
+
+    def test_normalize_temp_unit_invalid(self):
+        """Test invalid temperature unit returns None."""
+        assert _normalize_temp_unit("rankine") is None
+        assert _normalize_temp_unit("invalid") is None
+        assert _normalize_temp_unit("") is None
+
+    def test_get_bundled_years_with_exception(self):
+        """Test _get_bundled_years returns empty set on exception."""
+        # Test with non-existent station (should return empty set)
+        result = _get_bundled_years("000000-00000")
+        assert isinstance(result, set)
+        # Will be empty unless bundled data exists
+
+        # Mock exception scenario
+        with patch("weathervault.weather.importlib.resources.files") as mock_files:
+            mock_files.side_effect = ModuleNotFoundError()
+            result = _get_bundled_years("725030-14732")
+            assert result == set()
+
+        with patch("weathervault.weather.importlib.resources.files") as mock_files:
+            mock_files.side_effect = FileNotFoundError()
+            result = _get_bundled_years("725030-14732")
+            assert result == set()
+
+        with patch("weathervault.weather.importlib.resources.files") as mock_files:
+            mock_files.side_effect = TypeError()
+            result = _get_bundled_years("725030-14732")
+            assert result == set()
+
+
+class TestFetchYearData:
+    """Tests for _fetch_year_data function."""
+
+    def test_fetch_year_data_bundled_exception(self):
+        """Test exception handling when reading bundled data."""
+        with patch("weathervault.weather.importlib.resources.files") as mock_files:
+            # Simulate exception reading bundled data
+            mock_files.side_effect = ModuleNotFoundError()
+
+            # Should continue to check cache/download
+            with patch("weathervault.weather.httpx.Client") as mock_client:
+                mock_response = Mock()
+                mock_response.content = b"test data"
+                mock_response.raise_for_status = Mock()
+                mock_client.return_value.__enter__.return_value.get.return_value = mock_response
+
+                result = _fetch_year_data("725030-14732", 2023)
+                assert result == b"test data"
+
+    def test_fetch_year_data_cache_reading(self):
+        """Test reading from cache directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_path = Path(tmpdir)
+            cache_file = cache_path / "725030-14732-2023.gz"
+            cache_file.write_bytes(b"cached data")
+
+            # Mock bundled data to not exist
+            with patch("weathervault.weather.importlib.resources.files") as mock_files:
+                mock_files.side_effect = FileNotFoundError()
+
+                result = _fetch_year_data("725030-14732", 2023, cache_path)
+                assert result == b"cached data"
+
+    def test_fetch_year_data_404_error(self):
+        """Test handling of 404 error (data not available)."""
+        with patch("weathervault.weather.importlib.resources.files") as mock_files:
+            mock_files.side_effect = FileNotFoundError()
+
+            with patch("weathervault.weather.httpx.Client") as mock_client:
+                mock_response = Mock()
+                mock_response.status_code = 404
+                mock_error = httpx.HTTPStatusError(
+                    "Not Found", request=Mock(), response=mock_response
+                )
+                mock_client.return_value.__enter__.return_value.get.side_effect = mock_error
+
+                result = _fetch_year_data("725030-14732", 9999)
+                assert result is None
+
+    def test_fetch_year_data_non_404_http_error(self):
+        """Test that non-404 HTTP errors are raised."""
+        with patch("weathervault.weather.importlib.resources.files") as mock_files:
+            mock_files.side_effect = FileNotFoundError()
+
+            with patch("weathervault.weather.httpx.Client") as mock_client:
+                mock_response = Mock()
+                mock_response.status_code = 500
+                mock_error = httpx.HTTPStatusError(
+                    "Server Error", request=Mock(), response=mock_response
+                )
+                mock_client.return_value.__enter__.return_value.get.side_effect = mock_error
+
+                with pytest.raises(httpx.HTTPStatusError):
+                    _fetch_year_data("725030-14732", 2023)
+
+    def test_fetch_year_data_network_error(self):
+        """Test handling of network errors."""
+        with patch("weathervault.weather.importlib.resources.files") as mock_files:
+            mock_files.side_effect = FileNotFoundError()
+
+            with patch("weathervault.weather.httpx.Client") as mock_client:
+                mock_client.return_value.__enter__.return_value.get.side_effect = (
+                    httpx.RequestError("Network error")
+                )
+
+                result = _fetch_year_data("725030-14732", 2023)
+                assert result is None
+
+    def test_fetch_year_data_cache_writing(self):
+        """Test writing downloaded data to cache."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_path = Path(tmpdir)
+
+            with patch("weathervault.weather.importlib.resources.files") as mock_files:
+                mock_files.side_effect = FileNotFoundError()
+
+                with patch("weathervault.weather.httpx.Client") as mock_client:
+                    mock_response = Mock()
+                    mock_response.content = b"downloaded data"
+                    mock_response.raise_for_status = Mock()
+                    mock_client.return_value.__enter__.return_value.get.return_value = mock_response
+
+                    result = _fetch_year_data("725030-14732", 2023, cache_path)
+                    assert result == b"downloaded data"
+
+                    # Verify file was cached
+                    cached_file = cache_path / "725030-14732-2023.gz"
+                    assert cached_file.exists()
+                    assert cached_file.read_bytes() == b"downloaded data"
+
+
+class TestMakeHourly:
+    """Tests for _make_hourly function."""
+
+    def test_make_hourly_empty_dataframe(self):
+        """Test that empty DataFrame is returned unchanged."""
+        empty_df = pl.DataFrame(
+            schema={
+                "id": pl.Utf8,
+                "time": pl.Datetime,
+                "temp": pl.Float64,
+            }
+        )
+        result = _make_hourly(empty_df, [2023], None)
+        assert result.height == 0
+
+    @pytest.mark.network
+    def test_make_hourly_with_data(self):
+        """Test hourly resampling with actual data."""
+        # Get some raw data
+        df = get_weather_data("725030-14732", years=2023, make_hourly=False, quiet=True)
+
+        # Apply hourly resampling
+        result = _make_hourly(df, [2023], "America/New_York", incl_stn_info=False)
+
+        # All times should be at hour boundaries
+        minutes = result["time"].dt.minute().unique().to_list()
+        assert minutes == [0]
+
+
+class TestConvertTimeToColumns:
+    """Tests for _convert_time_to_columns function."""
+
+    def test_convert_time_to_columns_empty_dataframe(self):
+        """Test converting empty DataFrame to time columns."""
+        empty_df = pl.DataFrame(
+            schema={
+                "id": pl.Utf8,
+                "time": pl.Datetime,
+                "temp": pl.Float64,
+            }
+        )
+        result = _convert_time_to_columns(empty_df, incl_stn_info=False)
+
+        # Should return empty dataframe with proper columns
+        expected_cols = [
+            "id",
+            "year",
+            "month",
+            "day",
+            "hour",
+            "min",
+            "temp",
+            "dew_point",
+            "rh",
+            "wd",
+            "ws",
+            "atmos_pres",
+            "ceil_hgt",
+            "visibility",
+        ]
+        assert result.height == 0
+        assert all(col in result.columns for col in expected_cols)
+
+    def test_convert_time_to_columns_empty_with_station_info(self):
+        """Test converting empty DataFrame with station info."""
+        empty_df = pl.DataFrame(
+            schema={
+                "id": pl.Utf8,
+                "time": pl.Datetime,
+                "temp": pl.Float64,
+            }
+        )
+        result = _convert_time_to_columns(empty_df, incl_stn_info=True)
+
+        # Should include station metadata columns
+        station_cols = ["name", "country", "state", "icao", "lat", "lon", "elev"]
+        assert result.height == 0
+        assert all(col in result.columns for col in station_cols)
+
+    @pytest.mark.network
+    def test_convert_time_to_columns_with_station_info(self):
+        """Test time column conversion with station metadata."""
+        # Get data with station info
+        df = get_weather_data(
+            "725030-14732", years=2023, incl_stn_info=True, time_as_columns=False, quiet=True
+        )
+
+        # Convert to time columns
+        result = _convert_time_to_columns(df, incl_stn_info=True)
+
+        # Should have time component columns
+        assert "year" in result.columns
+        assert "month" in result.columns
+        assert "day" in result.columns
+        assert "hour" in result.columns
+        assert "min" in result.columns
+
+        # Should have station metadata
+        station_cols = ["name", "country", "state", "icao", "lat", "lon", "elev"]
+        assert all(col in result.columns for col in station_cols)
+
+
+class TestStationWithNoInventory:
+    """Tests for stations without inventory data."""
+
+    def test_station_with_no_inventory_and_no_bundled(self, monkeypatch):
+        """Test error when station has no inventory and no bundled data."""
+        # Mock a station that exists but has no inventory data
+        mock_station_df = pl.DataFrame(
+            {
+                "id": ["999999-99999"],
+                "name": ["Test Station"],
+                "country": ["US"],
+                "state": ["NY"],
+                "icao": ["TEST"],
+                "lat": [40.0],
+                "lon": [-74.0],
+                "elev": [10.0],
+            }
+        )
+
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [],
+        )
+        monkeypatch.setattr(
+            "weathervault.weather._get_bundled_years",
+            lambda station_id: set(),
+        )
+
+        with pytest.raises(ValueError, match="No data inventory found"):
+            get_weather_data("999999-99999", years=2023)
+
+    def test_station_with_bundled_but_no_inventory(self, monkeypatch):
+        """Test that bundled data can be used when inventory is unavailable."""
+        # Mock a station with bundled data but no inventory
+        mock_station_df = pl.DataFrame(
+            {
+                "id": ["999999-99999"],
+                "name": ["Test Station"],
+                "country": ["US"],
+                "state": ["NY"],
+                "icao": ["TEST"],
+                "lat": [40.0],
+                "lon": [-74.0],
+                "elev": [10.0],
+            }
+        )
+
+        # Create properly formatted mock ISD data
+        # Format: station-year-month-day-hour-min temp dewpoint...
+        mock_data = b"0000999999999992023123100001+40000-074000FM-15+0100AAAAA V020000099999999999999999999\n"
+
+        def mock_fetch(station_id, year, cache_path=None):
+            return mock_data
+
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [],  # No inventory
+        )
+        monkeypatch.setattr(
+            "weathervault.weather._get_bundled_years",
+            lambda station_id: {2023},  # But has bundled data
+        )
+        monkeypatch.setattr("weathervault.weather._fetch_year_data", mock_fetch)
+
+        # Should work when year is explicitly specified and in bundled data
+        result = get_weather_data("999999-99999", years=2023)
+        assert isinstance(result, pl.DataFrame)
+        # Should have used the bundled year 2023
+        assert result.height > 0
+
+
+class TestCacheDirectory:
+    """Tests for cache directory handling."""
+
+    def test_cache_dir_dot_uses_cwd(self, monkeypatch):
+        """Test that cache_dir='.' uses current working directory."""
+        cache_paths_used = []
+
+        def mock_fetch(station_id, year, cache_path=None):
+            cache_paths_used.append(cache_path)
+            return None
+
+        mock_station_df = pl.DataFrame(
+            {
+                "id": ["725030-14732"],
+                "name": ["Test"],
+                "country": ["US"],
+                "state": ["NY"],
+                "icao": ["TEST"],
+                "lat": [40.0],
+                "lon": [-74.0],
+                "elev": [10.0],
+            }
+        )
+
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [2023],
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+        monkeypatch.setattr("weathervault.weather._fetch_year_data", mock_fetch)
+
+        get_weather_data("725030-14732", years=2023, cache_dir=".")
+
+        # Should use current working directory
+        assert len(cache_paths_used) > 0
+        assert cache_paths_used[0] == Path.cwd()
+
+    def test_cache_dir_creates_directory(self, monkeypatch):
+        """Test that cache directory is created if it doesn't exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_dir = Path(tmpdir) / "nested" / "cache"
+            assert not cache_dir.exists()
+
+            def mock_fetch(station_id, year, cache_path=None):
+                return None
+
+            mock_station_df = pl.DataFrame(
+                {
+                    "id": ["725030-14732"],
+                    "name": ["Test"],
+                    "country": ["US"],
+                    "state": ["NY"],
+                    "icao": ["TEST"],
+                    "lat": [40.0],
+                    "lon": [-74.0],
+                    "elev": [10.0],
+                }
+            )
+
+            monkeypatch.setattr(
+                "weathervault.weather.get_years_for_station",
+                lambda station_id: [2023],
+            )
+            monkeypatch.setattr(
+                "weathervault.weather.get_station_metadata",
+                lambda **kwargs: mock_station_df,
+            )
+            monkeypatch.setattr("weathervault.weather._fetch_year_data", mock_fetch)
+
+            get_weather_data("725030-14732", years=2023, cache_dir=str(cache_dir))
+
+            # Directory should be created
+            assert cache_dir.exists()
+
+    def test_cache_dir_none_no_caching(self, monkeypatch):
+        """Test that cache_dir=None means no caching."""
+        cache_paths_used = []
+
+        def mock_fetch(station_id, year, cache_path=None):
+            cache_paths_used.append(cache_path)
+            return None
+
+        mock_station_df = pl.DataFrame(
+            {
+                "id": ["725030-14732"],
+                "name": ["Test"],
+                "country": ["US"],
+                "state": ["NY"],
+                "icao": ["TEST"],
+                "lat": [40.0],
+                "lon": [-74.0],
+                "elev": [10.0],
+            }
+        )
+
+        monkeypatch.setattr(
+            "weathervault.weather.get_years_for_station",
+            lambda station_id: [2023],
+        )
+        monkeypatch.setattr(
+            "weathervault.weather.get_station_metadata",
+            lambda **kwargs: mock_station_df,
+        )
+        monkeypatch.setattr("weathervault.weather._fetch_year_data", mock_fetch)
+
+        get_weather_data("725030-14732", years=2023, cache_dir=None)
+
+        # Should pass None to fetch function (no caching)
+        assert len(cache_paths_used) > 0
+        assert cache_paths_used[0] is None

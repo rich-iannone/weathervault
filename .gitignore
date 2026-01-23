@@ -173,8 +173,14 @@ __marimo__/
 # Quarto files
 /*.qmd
 
-# Temporary Outputs
+# Temporary outputs
 /*.parquet
 /*.csv
 /*.pdf
 IMPROVEMENTS.md
+
+# Mac stuff
+.DS_Store
+
+# Great Docs build directory
+great-docs/

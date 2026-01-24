@@ -126,29 +126,33 @@ def get_weather_data(
     Returns
     -------
     pl.DataFrame
-        A DataFrame with weather observations containing:
+        A DataFrame with weather observations.
 
-        - `id`: Station identifier
-        - `time`: Observation time (local time if `convert_to_local=True`, else UTC); or if
-          `time_as_columns=True`: `year`, `month`, `day`, `hour`, `min` columns instead
-        - `temp`: Air temperature (Celsius, Fahrenheit, or Kelvin based on `temp_unit=`)
-        - `dew_point`: Dew point temperature
-        - `rh`: Relative humidity (percentage)
-        - `wd`: Wind direction in degrees (`0`-`360`, direction wind is blowing from)
-        - `ws`: Wind speed in meters per second
-        - `atmos_pres`: Atmospheric pressure at sea level (hectopascals)
-        - `ceil_hgt`: Ceiling height in meters (`22000` is taken as unlimited)
-        - `visibility`: Visibility in meters (max is `16000`)
+    Columns
+    -------
+    The returned DataFrame contains the following columns:
 
-        If incl_stn_info=True, also includes:
+    - `id`: Station identifier
+    - `time`: Observation time (local time if `convert_to_local=True`, else UTC); or if
+      `time_as_columns=True`: `year`, `month`, `day`, `hour`, `min` columns instead
+    - `temp`: Air temperature (Celsius, Fahrenheit, or Kelvin based on `temp_unit=`)
+    - `dew_point`: Dew point temperature
+    - `rh`: Relative humidity (percentage)
+    - `wd`: Wind direction in degrees (`0`-`360`, direction wind is blowing from)
+    - `ws`: Wind speed in meters per second
+    - `atmos_pres`: Atmospheric pressure at sea level (hectopascals)
+    - `ceil_hgt`: Ceiling height in meters (`22000` is taken as unlimited)
+    - `visibility`: Visibility in meters (max is `16000`)
 
-        - `name`: Station name
-        - `country`: Country name
-        - `state`: State/region code (if applicable)
-        - `icao`: ICAO identifier
-        - `lat`: Latitude in degrees
-        - `lon`: Longitude in degrees
-        - `elev`: Elevation in meters above sea level
+    When `incl_stn_info=True`, the following station information columns are also included:
+
+    - `name`: Station name
+    - `country`: Country name
+    - `state`: State/region code (if applicable)
+    - `icao`: ICAO identifier
+    - `lat`: Latitude in degrees
+    - `lon`: Longitude in degrees
+    - `elev`: Elevation in meters above sea level
 
     Examples
     --------

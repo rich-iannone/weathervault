@@ -52,22 +52,26 @@ def get_station_metadata(
     Returns
     -------
     pl.DataFrame
-        A DataFrame with station metadata including:
+        A DataFrame with station metadata.
 
-        - `id`: Station ID (USAF-WBAN format)
-        - `usaf`: USAF station identifier
-        - `wban`: WBAN station identifier
-        - `name`: Station name
-        - `country_code`: ISO 3166-1 alpha-2 country code
-        - `country`: Country name
-        - `state`: US state code (if applicable)
-        - `icao`: ICAO identifier
-        - `lat`: Latitude in degrees
-        - `lon`: Longitude in degrees
-        - `elev`: Elevation in meters
-        - `begin_date`: Date of first available data
-        - `end_date`: Date of last available data
-        - `tz_name`: Timezone name (if `include_timezone=` is `True`)
+    Columns
+    -------
+    The returned DataFrame contains the following columns:
+
+    - `id`: Station ID (USAF-WBAN format)
+    - `usaf`: USAF station identifier
+    - `wban`: WBAN station identifier
+    - `name`: Station name
+    - `country_code`: ISO 3166-1 alpha-2 country code
+    - `country`: Country name
+    - `state`: US state code (if applicable)
+    - `icao`: ICAO identifier
+    - `lat`: Latitude in degrees
+    - `lon`: Longitude in degrees
+    - `elev`: Elevation in meters
+    - `begin_date`: Date of first available data
+    - `end_date`: Date of last available data
+    - `tz_name`: Timezone name (only included if `include_timezone=True`)
 
     Examples
     --------
@@ -230,14 +234,18 @@ def get_inventory(*, force_refresh: bool = False) -> pl.DataFrame:
     Returns
     -------
     pl.DataFrame
-        A DataFrame with inventory information including:
+        A DataFrame with inventory information.
 
-        - `id`: Station ID (USAF-WBAN format)
-        - `usaf`: USAF station identifier
-        - `wban`: WBAN station identifier
-        - `year`: Year of data
-        - `jan` through `dec`: Record counts for each month
-        - `total`: Total records for the year
+    Columns
+    -------
+    The returned DataFrame contains the following columns:
+
+    - `id`: Station ID (USAF-WBAN format)
+    - `usaf`: USAF station identifier
+    - `wban`: WBAN station identifier
+    - `year`: Year of data
+    - `jan` through `dec`: Record counts for each month
+    - `total`: Total records for the year
 
     Examples
     --------
@@ -513,10 +521,14 @@ def get_countries() -> pl.DataFrame:
     Returns
     -------
     pl.DataFrame
-        A DataFrame with columns:
+        A DataFrame with country information.
 
-        - country_code: ISO 3166-1 alpha-2 country code
-        - country: Country name
+    Columns
+    -------
+    The returned DataFrame contains the following columns:
+
+    - `country_code`: ISO 3166-1 alpha-2 country code
+    - `country`: Country name
 
     Examples
     --------

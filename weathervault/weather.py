@@ -387,9 +387,9 @@ def _fetch_year_data(
 
     First checks for data in:
 
-    1. Bundled sample data (shipped with package for documentation examples)
-    2. The specified cache directory (if provided)
-    3. The current working directory
+    1. bundled sample data (shipped with package for documentation examples)
+    2. the specified cache directory (if provided)
+    3. the current working directory
 
     If not found locally, downloads from NCEI and caches if `cache_path=` is set.
 

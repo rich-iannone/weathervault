@@ -1,8 +1,6 @@
-# weathervault
-
 <div align="center">
 
-<a href="https://rich-iannone.github.io/weathervault/"><img src="https://rich-iannone.github.io/weathervault/assets/weathervault.svg" width="85%"/></a>
+<a href="https://rich-iannone.github.io/weathervault/"><img src="https://rich-iannone.github.io/weathervault/assets/weathervault.svg" width="65%"/></a>
 
 _Obtain Polars DataFrames of NOAA historical weather data_
 

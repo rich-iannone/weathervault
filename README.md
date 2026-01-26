@@ -2,6 +2,10 @@
 
 <div align="center">
 
+<a href="https://rich-iannone.github.io/weathervault/"><img src="https://rich-iannone.github.io/weathervault/assets/weathervault.svg" width="85%"/></a>
+
+_Obtain Polars DataFrames of NOAA historical weather data_
+
 [![Python versions](https://img.shields.io/pypi/pyversions/weathervault.svg)](https://pypi.org/project/weathervault/)
 [![PyPI](https://img.shields.io/pypi/v/weathervault)](https://pypi.org/project/weathervault/#history)
 
@@ -11,7 +15,7 @@
 
 </div>
 
-Obtain Polars DataFrames of historical weather data from NOAA's National Centers for Environmental Information (NCEI) Integrated Surface Database (ISD).
+
 
 ## Features
 

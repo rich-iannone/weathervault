@@ -247,7 +247,7 @@ print(temp_stats)
 
 ## Performance Tips
 
-For best performance, always use caching by specifying `cache_dir` for repeated downloads (this avoids re-downloading the same data). Request specific years rather than downloading all available years if you only need recent data. When working with multiple years, batch your requests by downloading them in one call rather than making separate calls. Finally, if you don't need timezone conversion, set `convert_to_local=False` to avoid the local time overhead associated with timezone calculations.
+For best performance, always use caching by specifying `cache_dir=` for repeated downloads (this avoids re-downloading the same data). Request specific years rather than downloading all available years if you only need recent data. When working with multiple years, batch your requests by downloading them in one call rather than making separate calls. Finally, if you don't need timezone conversion, set `convert_to_local=False` to avoid the local time overhead associated with timezone calculations.
 
 ## Next Steps
 

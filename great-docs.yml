@@ -32,10 +32,10 @@ dynamic: false
 authors:
   - name: Rich Iannone
     role: Maintainer
-    # affiliation: 
+    affiliation: Posit, PBC
     email: riannone@me.com
-    # github: 
-    # orcid: 
+    github: rich-iannone
+    orcid: 0000-0003-3925-190X
 
 # API Reference Structure
 # -----------------------
@@ -46,15 +46,37 @@ authors:
 # - Add 'desc:' to sections for descriptions
 
 reference:
-  - title: Functions
-    desc: Utility functions
-    contents:
-      - get_countries
-      - get_inventory
-      - get_station_metadata
-      - get_weather_data
-      - get_years_for_station
-      - search_stations
+  title: "API Reference"
+  desc: "Complete reference for weathervault functions, objects, and constants."
+  sections:
+    - title: Core Functions
+      desc: Primary functions for retrieving weather data and station information.
+      contents:
+        - get_weather_data
+        - get_station_metadata
+        - search_stations
+
+    - title: Station Discovery
+      desc: Functions for exploring available stations and their data coverage.
+      contents:
+        - get_inventory
+        - get_years_for_station
+        - get_countries
+
+    - title: Helper Objects
+      desc: Convenience objects for station and location lookups with autocomplete support.
+      contents:
+        - station
+        - country
+        - state
+
+    - title: Constants
+      desc: Data constants and URL configurations used by the package.
+      contents:
+        - BASE_URL
+        - COUNTRY_CODES
+        - ISO_COUNTRY_NAMES
+        - US_STATE_NAMES
 
 # Site Settings
 # -------------

@@ -1,7 +1,16 @@
 """Constants for weathervault package."""
 
-# Base URL for NCEI NOAA data
 BASE_URL = "https://www.ncei.noaa.gov/pub/data/noaa"
+"""Base URL for NCEI NOAA Integrated Surface Database (ISD).
+
+All weather data files are retrieved from this NOAA server location.
+The URL structure is: {BASE_URL}/{year}/{station_id}-{year}.gz
+
+Example:
+    >>> import weathervault as wv
+    >>> wv.BASE_URL
+    'https://www.ncei.noaa.gov/pub/data/noaa'
+"""
 
 # Column widths for the fixed-width mandatory data section
 # Based on ISD format document
@@ -104,8 +113,6 @@ SCALE_FACTORS = {
     "elevation": 1,  # meters (already in meters)
 }
 
-# FIPS country codes to country names mapping
-# From https://www.ncei.noaa.gov/pub/data/noaa/country-list.txt
 COUNTRY_CODES = {
     "AA": "Aruba",
     "AC": "Antigua and Barbuda",
@@ -359,6 +366,21 @@ COUNTRY_CODES = {
     "ZI": "Zimbabwe",
     "ZM": "Samoa",
 }
+"""FIPS country code to country name mapping.
+
+These are the FIPS 10-4 country codes used in the NCEI weather data files.
+For a more standard mapping using ISO 3166-1 alpha-2 codes, see `ISO_COUNTRY_NAMES`.
+
+Source:
+    https://www.ncei.noaa.gov/pub/data/noaa/country-list.txt
+
+Example:
+    >>> import weathervault as wv
+    >>> wv.COUNTRY_CODES['GM']  # FIPS code for Germany
+    'Germany'
+    >>> wv.COUNTRY_CODES['US']
+    'United States'
+"""
 
 # FIPS to ISO 3166-1 alpha-2 country code mapping
 # Maps the FIPS codes used in ISD data to standard ISO country codes
@@ -621,8 +643,6 @@ FIPS_TO_ISO = {
 # Reverse mapping: ISO to FIPS
 ISO_TO_FIPS = {v: k for k, v in FIPS_TO_ISO.items()}
 
-# ISO 3166-1 alpha-2 country codes to nicely-formatted country names
-# Sourced from the gt package for standardized, display-friendly country names
 ISO_COUNTRY_NAMES = {
     "AW": "Aruba",
     "AF": "Afghanistan",
@@ -840,9 +860,26 @@ ISO_COUNTRY_NAMES = {
     "ZM": "Zambia",
     "ZW": "Zimbabwe",
 }
+"""ISO 3166-1 alpha-2 country code to display-friendly country name mapping.
+
+This dictionary provides standardized, human-readable country names for all
+ISO 3166-1 alpha-2 country codes. Use this for displaying country names or
+validating country codes in your application.
+
+The `country` helper object provides convenient attribute-based access to these codes.
+
+Example:
+    >>> import weathervault as wv
+    >>> wv.ISO_COUNTRY_NAMES['DE']  # ISO code for Germany
+    'Germany'
+    >>> wv.ISO_COUNTRY_NAMES['GB']
+    'United Kingdom'
+    >>> # Or use the country helper for attribute-based access:
+    >>> wv.country.DE
+    'DE'
+"""
 
 
-# US state and territory codes to names
 US_STATE_NAMES = {
     "AL": "Alabama",
     "AK": "Alaska",
@@ -901,6 +938,26 @@ US_STATE_NAMES = {
     "PR": "Puerto Rico",
     "VI": "U.S. Virgin Islands",
 }
+"""US state and territory code to name mapping.
+
+This dictionary maps two-letter US state and territory codes to their full names.
+Includes all 50 states, District of Columbia, and 5 US territories
+(American Samoa, Guam, Northern Mariana Islands, Puerto Rico, U.S. Virgin Islands).
+
+The `state` helper object provides convenient attribute-based access to these codes.
+
+Example:
+    >>> import weathervault as wv
+    >>> wv.US_STATE_NAMES['CA']
+    'California'
+    >>> wv.US_STATE_NAMES['NY']
+    'New York'
+    >>> # Or use the state helper for attribute-based access:
+    >>> wv.state.CA
+    'CA'
+    >>> # Use in search_stations:
+    >>> wv.search_stations(country_code='US', state=wv.state.TX)
+"""
 
 
 class _CountryCodes:
@@ -934,6 +991,23 @@ class _CountryCodes:
 
 # Singleton instance for convenient attribute-based country code access
 country = _CountryCodes()
+country.__doc__ = """Helper object for accessing ISO 3166-1 alpha-2 country codes with autocomplete.
+
+Provides attribute-based access to all ISO country codes for convenient use
+in function calls. Each country code is available as an attribute (e.g., `country.US`,
+`country.DE`, `country.GB`).
+
+Example:
+    >>> import weathervault as wv
+    >>> # Use with search_stations:
+    >>> wv.search_stations(country_code=wv.country.DE)
+    >>> wv.search_stations(country_code=wv.country.GB)
+    >>> # Autocomplete shows all available country codes
+    >>> wv.country.  # <-- IDE will show suggestions like US, GB, DE, etc.
+
+See Also:
+    `ISO_COUNTRY_NAMES` : Dictionary of all ISO country codes and names.
+"""
 
 
 class _StateCodes:
@@ -969,3 +1043,23 @@ class _StateCodes:
 
 # Singleton instance for convenient attribute-based state code access
 state = _StateCodes()
+state.__doc__ = """Helper object for accessing US state and territory codes with autocomplete.
+
+Provides attribute-based access to all US state and territory codes for convenient
+use in function calls. Each state code is available as an attribute (e.g., `state.CA`,
+`state.NY`, `state.TX`).
+
+Includes all 50 US states, District of Columbia, and 5 US territories
+(American Samoa, Guam, Northern Mariana Islands, Puerto Rico, U.S. Virgin Islands).
+
+Example:
+    >>> import weathervault as wv
+    >>> # Use with search_stations:
+    >>> wv.search_stations(country_code='US', state=wv.state.CA)
+    >>> wv.search_stations(country_code='US', state=wv.state.NY)
+    >>> # Autocomplete shows all available state codes
+    >>> wv.state.  # <-- IDE will show suggestions like CA, NY, TX, etc.
+
+See Also:
+    `US_STATE_NAMES` : Dictionary of all US state codes and names.
+"""

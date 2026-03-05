@@ -246,3 +246,32 @@ class _StationRegistry(_StationNamespace):
 
 # Singleton instance
 station = _StationRegistry()
+station.__doc__ = """Helper object for accessing weather station IDs with autocomplete.
+
+Provides hierarchical attribute-based access to weather station IDs organized by
+country and state (for US stations). Station data is loaded lazily on first access.
+
+Stations are organized using ISO 3166-1 alpha-2 country codes:
+- For US stations: `station.US.<STATE>.<STATION_NAME>`
+- For other countries: `station.<ISO_CODE>.<STATION_NAME>`
+
+Example:
+    >>> import weathervault as wv
+    >>> # Access a specific US station by state:
+    >>> station_id = wv.station.US.NY.LAGUARDIA_AP
+    >>> station_id
+    '725030-14732'
+    >>> # Access a non-US station:
+    >>> wv.station.DE.BERLIN_TEGEL  # Germany
+    '103820-99999'
+    >>> # Search for stations by name pattern:
+    >>> wv.station.search('laguardia')
+    {'US.NY.LAGUARDIA_AP': '725030-14732'}
+    >>> # Autocomplete shows available countries/states/stations
+    >>> wv.station.US.  # <-- IDE will show state codes
+    >>> wv.station.US.CA.  # <-- IDE will show California stations
+
+See Also:
+    `get_station_metadata()` : Get full metadata for all stations.
+    `search_stations()` : Search stations by criteria.
+"""

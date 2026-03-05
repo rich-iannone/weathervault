@@ -66,9 +66,12 @@ reference:
     - title: Helper Objects
       desc: Convenience objects for station and location lookups with autocomplete support.
       contents:
-        - station
-        - country
-        - state
+        - name: station
+          desc: Hierarchical attribute-based access to weather station IDs by country and state.
+        - name: country
+          desc: Attribute-based access to ISO 3166-1 alpha-2 country codes.
+        - name: state
+          desc: Attribute-based access to US state and territory codes.
 
     - title: Constants
       desc: Data constants and URL configurations used by the package.

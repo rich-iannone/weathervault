@@ -16,13 +16,13 @@ _Obtain Polars DataFrames of NOAA historical weather data_
 
 ## Features of Weathervault
 
-- Download and use weather station data with a simple API
-- Receive data as efficient Polars DataFrames ready for analysis
-- Locate met stations by name, location, and elevation
-- Automatic conversion from UTC to local station time
-- Support for different temperature units (Celsius, Fahrenheit, and Kelvin)
-- Optional local data file caching with automatic cache detection
-- Get access to the global ISD network of weather stations (29,000+ stations)
+- download and use weather station data with a simple API
+- receive data as efficient Polars DataFrames ready for analysis
+- locate met stations by name, location, and elevation
+- automatic conversion from UTC to local station time
+- support for different temperature units (Celsius, Fahrenheit, and Kelvin)
+- optional local data file caching with automatic cache detection
+- get access to the global ISD network of weather stations (29,000+ stations)
 
 ## Installation
 

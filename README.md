@@ -22,7 +22,7 @@ _Obtain Polars DataFrames of NOAA historical weather data_
 - automatic conversion from UTC to local station time
 - support for different temperature units (Celsius, Fahrenheit, and Kelvin)
 - optional local data file caching with automatic cache detection
-- get access to the global ISD network of weather stations (29,000+ stations)
+- get access to the global ISD network of weather stations
 
 ## Installation
 

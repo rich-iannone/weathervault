@@ -21,7 +21,7 @@ _Obtain Polars DataFrames of NOAA historical weather data_
 - locate met stations by name, location, and elevation
 - automatic conversion from UTC to local station time
 - support for different temperature units (Celsius, Fahrenheit, and Kelvin)
-- optional local data file caching with automatic cache detection
+- local data file caching with automatic cache detection
 - get access to the global ISD network of weather stations
 
 ## Installation

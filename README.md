@@ -14,7 +14,7 @@ _Obtain Polars DataFrames of NOAA historical weather data_
 </div>
 
 
-## Features of Weathervault
+## Main Features
 
 - download and use weather station data with an easy-to-use API
 - receive data as efficient Polars DataFrames ready for analysis

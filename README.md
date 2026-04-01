@@ -16,7 +16,7 @@ _Obtain Polars DataFrames of NOAA historical weather data_
 
 ## Features of Weathervault
 
-- download and use weather station data with a simple API
+- download and use weather station data with an easy-to-use API
 - receive data as efficient Polars DataFrames ready for analysis
 - locate met stations by name, location, and elevation
 - automatic conversion from UTC to local station time
